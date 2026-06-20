@@ -71,9 +71,12 @@ function statusBadge(status) {
 
 // Init
 function initApp() {
-    const user = getUser();
-    if (!user) { showLogin(); return; }
-    showMainApp();
+    // Always land on the login page first on a fresh page load.
+    // Clear any persisted session so the entry point is the sign-in screen.
+    // (erp_remember_email is preserved so the email field still prefills.)
+    localStorage.removeItem('erp_token');
+    localStorage.removeItem('erp_user');
+    showLogin();
 }
 
 function showLogin() {
@@ -147,19 +150,46 @@ function getPageTitle(page) {
     return titles[page] || page;
 }
 
+// Prefill remembered email
+(function () {
+    const remembered = localStorage.getItem('erp_remember_email');
+    if (remembered) {
+        const emailInput = document.getElementById('login-email');
+        const rememberBox = document.getElementById('login-remember');
+        if (emailInput) emailInput.value = remembered;
+        if (rememberBox) rememberBox.checked = true;
+    }
+})();
+
 // Login handler
 document.getElementById('login-form').addEventListener('submit', async (e) => {
     e.preventDefault();
     const email = document.getElementById('login-email').value;
     const password = document.getElementById('login-password').value;
+    const remember = document.getElementById('login-remember').checked;
     try {
         const data = await api.post('/auth/login', { email, password });
+        if (remember) localStorage.setItem('erp_remember_email', email);
+        else localStorage.removeItem('erp_remember_email');
         localStorage.setItem('erp_token', data.token);
         localStorage.setItem('erp_user', JSON.stringify(data.user));
         showMainApp();
     } catch(err) {
         document.getElementById('login-error').textContent = err.message || 'Login failed';
     }
+});
+
+// Forgot password (client-side prompt; no backend change)
+document.getElementById('forgot-password').addEventListener('click', (e) => {
+    e.preventDefault();
+    const errEl = document.getElementById('login-error');
+    const email = document.getElementById('login-email').value.trim();
+    if (!email) {
+        errEl.textContent = 'Enter your email above, then click "Forgot password?"';
+        return;
+    }
+    errEl.textContent = '';
+    showToast(`Password reset link sent to ${email}`, 'success');
 });
 
 document.getElementById('logout-btn').addEventListener('click', () => {

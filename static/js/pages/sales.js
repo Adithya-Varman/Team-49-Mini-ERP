@@ -1,22 +1,34 @@
 // Sales Orders Page
+const soIcon = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="8" cy="21" r="1"/><circle cx="19" cy="21" r="1"/><path d="M2.05 2.05h2l2.66 12.42a2 2 0 0 0 2 1.58h9.78a2 2 0 0 0 1.95-1.57l1.65-7.43H5.12"/></svg>';
+
 async function renderSales() {
     const content = document.getElementById('page-content');
     document.getElementById('header-actions').innerHTML = '<button class="btn btn-primary" onclick="showCreateSalesModal()">+ New Sales Order</button>';
     try {
         const orders = await api.get('/sales-orders');
-        content.innerHTML = `<div class="search-bar"><input id="so-search" placeholder="Search..." oninput="filterSales()">
-        <select id="so-status" onchange="filterSales()"><option value="">All Status</option><option value="DRAFT">DRAFT</option><option value="CONFIRMED">CONFIRMED</option><option value="PARTIALLY_DELIVERED">PARTIAL</option><option value="FULLY_DELIVERED">DELIVERED</option><option value="CANCELLED">CANCELLED</option></select></div>
-        <div class="card"><div class="table-wrapper"><table><thead><tr><th>ID</th><th>Customer</th><th>Items</th><th>Total</th><th>Status</th><th>Actions</th></tr></thead>
-        <tbody id="so-tbody">${salesRows(orders)}</tbody></table></div></div>`;
         window._allSO = orders;
+        content.innerHTML = `
+        <div class="search-bar">
+            <input id="so-search" placeholder="Search by order ID or customer..." oninput="filterSales()">
+            <select id="so-status" onchange="filterSales()"><option value="">All Status</option><option value="DRAFT">Draft</option><option value="CONFIRMED">Confirmed</option><option value="PARTIALLY_DELIVERED">Partially Delivered</option><option value="FULLY_DELIVERED">Delivered</option><option value="CANCELLED">Cancelled</option></select>
+        </div>
+        <div class="card">
+            <div class="card-header"><span class="card-title">${soIcon} Sales Orders</span><span class="badge badge-draft" id="so-count">${orders.length}</span></div>
+            <div class="table-wrapper"><table>
+                <thead><tr><th>Order</th><th>Customer</th><th>Items</th><th>Total</th><th>Status</th><th>Actions</th></tr></thead>
+                <tbody id="so-tbody">${salesRows(orders)}</tbody></table></div>
+        </div>`;
     } catch(e) { content.innerHTML = `<p class="text-danger">${e.message}</p>`; }
 }
 function salesRows(orders) {
+    if (!orders.length) return '<tr><td colspan="6"><div class="dash-empty">No sales orders found</div></td></tr>';
     return orders.map(o => {
         const total = o.items.reduce((s,i)=>s+i.quantity*i.price,0);
-        return `<tr><td><strong>${o.id}</strong></td><td>${o.customer_name}</td>
-        <td>${o.items.map(i=>`${i.quantity}x ${i.product_name}`).join(', ')}</td>
-        <td>$${total.toFixed(2)}</td><td>${statusBadge(o.status)}</td>
+        return `<tr>
+        <td><strong>${o.id}</strong>${o.created_at?`<div class="cell-sub">${new Date(o.created_at).toLocaleDateString()}</div>`:''}</td>
+        <td>${o.customer_name}</td>
+        <td><div class="cell-items">${o.items.map(i=>`<span class="item-chip">${i.quantity}× ${i.product_name}</span>`).join('')}</div></td>
+        <td><strong>$${total.toFixed(2)}</strong></td><td>${statusBadge(o.status)}</td>
         <td><div class="btn-group">
             <button class="btn btn-sm btn-info" onclick="viewSalesOrder('${o.id}')">View</button>
             ${o.status==='DRAFT'?`<button class="btn btn-sm btn-success" onclick="confirmSO('${o.id}')">Confirm</button>`:''}
@@ -82,12 +94,12 @@ async function showDeliverModal(id) {
 async function viewSalesOrder(id) {
     const o = await api.get(`/sales-orders/${id}`);
     const total = o.items.reduce((s,i)=>s+i.quantity*i.price,0);
-    openModal(`Sales Order: ${o.id}`, `<div class="detail-grid">
+    openModal(`Sales Order ${o.id}`, `<div class="detail-grid">
         <div class="detail-item"><label>Customer</label><span>${o.customer_name}</span></div>
         <div class="detail-item"><label>Status</label><span>${statusBadge(o.status)}</span></div>
-        <div class="detail-item"><label>Total</label><span>$${total.toFixed(2)}</span></div>
-        <div class="detail-item"><label>Created</label><span>${new Date(o.created_at).toLocaleString()}</span></div>
-    </div><table class="mt-4"><thead><tr><th>Product</th><th>Qty</th><th>Price</th><th>Delivered</th></tr></thead>
-    <tbody>${o.items.map(i=>`<tr><td>${i.product_name}</td><td>${i.quantity}</td><td>$${i.price}</td><td>${i.delivered_qty}/${i.quantity}</td></tr>`).join('')}</tbody></table>`);
+        <div class="detail-item"><label>Total</label><span><strong>$${total.toFixed(2)}</strong></span></div>
+        <div class="detail-item"><label>Created</label><span>${o.created_at?new Date(o.created_at).toLocaleString():'—'}</span></div>
+    </div><div class="table-wrapper mt-4"><table><thead><tr><th>Product</th><th>Qty</th><th>Price</th><th>Line Total</th><th>Delivered</th></tr></thead>
+    <tbody>${o.items.map(i=>`<tr><td>${i.product_name}</td><td>${i.quantity}</td><td>$${i.price}</td><td>$${(i.quantity*i.price).toFixed(2)}</td><td>${i.delivered_qty}/${i.quantity}</td></tr>`).join('')}</tbody></table></div>`);
 }
 async function cancelSO(id){if(!confirm('Cancel this order?'))return;try{await api.post(`/sales-orders/${id}/cancel`);showToast('Cancelled','success');renderSales();}catch(e){showToast(e.message,'error');}}
