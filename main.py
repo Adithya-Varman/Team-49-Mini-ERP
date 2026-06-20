@@ -11,7 +11,8 @@ from routes import (
 )
 from repositories import (
     user_repository, product_repository, customer_repository,
-    supplier_repository, bom_repository
+    supplier_repository, bom_repository, sales_repository,
+    purchase_repository, manufacturing_repository
 )
 
 
@@ -133,6 +134,30 @@ def seed_data():
         product_repository.create(p_data)
 
     print("Seed data loaded successfully!")
+
+    # Seed some dummy transactions so the UI isn't empty
+    sales_repository.create({
+        "customer_id": c1["id"],
+        "items": [
+            {"product_id": p_table["id"], "quantity": 2, "price": 500, "delivered_qty": 0},
+            {"product_id": p_chair["id"], "quantity": 4, "price": 300, "delivered_qty": 0}
+        ],
+        "created_by": "System"
+    })
+
+    purchase_repository.create({
+        "supplier_id": s1["id"],
+        "items": [
+            {"product_id": p_wood["id"], "quantity": 100, "received_qty": 0}
+        ],
+        "created_by": "System"
+    })
+
+    manufacturing_repository.create({
+        "product_id": p_table["id"],
+        "quantity": 5,
+        "created_by": "System"
+    })
 
 
 
