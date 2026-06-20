@@ -10,9 +10,10 @@ def confirm_order(order_id, user_id="", user_name=""):
     order = sales_repository.find_by_id(order_id)
     if not order:
         return False, "Order not found", None
-    if order["status"] != "DRAFT":
-        return False, "Order is not in DRAFT status", None
+    if order["status"] not in ["DRAFT", "DELAYED"]:
+        return False, "Order must be in DRAFT or DELAYED status", None
 
+    was_delayed = order["status"] == "DELAYED"
     shortages = []
     auto_procurements = []
 
@@ -21,48 +22,59 @@ def confirm_order(order_id, user_id="", user_name=""):
         if not product:
             return False, f"Product {item['product_id']} not found", None
 
+        item_reserved = item.get("reserved_qty", 0)
+        needed = item["quantity"] - item_reserved
+
+        if needed <= 0:
+            continue
+
         free_qty = inventory_service.get_free_qty(product)
-        needed = item["quantity"]
 
         if free_qty >= needed:
             # Enough stock - reserve it
             inventory_service.reserve_stock(item["product_id"], needed)
+            item["reserved_qty"] = item_reserved + needed
         else:
             # Shortage
             shortage = needed - free_qty
-            strategy = product["procurement_strategy"]
+            shortages.append(product["name"])
+            
+            # Reserve whatever is available
+            if free_qty > 0:
+                inventory_service.reserve_stock(item["product_id"], free_qty)
+                item["reserved_qty"] = item_reserved + free_qty
+            
+            # Trigger auto procurement only if first time
+            if not was_delayed:
+                result = procurement_service.trigger_auto_procurement(
+                    product, shortage, user_id, user_name
+                )
+                if result:
+                    auto_procurements.append(result)
 
-            if strategy == "MTS":
-                shortages.append({
-                    "product_name": product["name"],
-                    "needed": needed,
-                    "available": free_qty,
-                    "shortage": shortage,
-                })
-            elif strategy == "MTO":
-                if product["procure_on_demand"]:
-                    # Reserve whatever is available
-                    if free_qty > 0:
-                        inventory_service.reserve_stock(item["product_id"], free_qty)
-                    # Trigger auto procurement for shortage
-                    result = procurement_service.trigger_auto_procurement(
-                        product, shortage, user_id, user_name
-                    )
-                    if result:
-                        auto_procurements.append(result)
-                else:
-                    shortages.append({
-                        "product_name": product["name"],
-                        "needed": needed,
-                        "available": free_qty,
-                        "shortage": shortage,
-                        "note": "MTO but auto-procure disabled",
-                    })
+    # Save any new partial reservations
+    sales_repository.update(order_id, {"items": order["items"]})
 
     if shortages:
-        return False, "Insufficient stock", {"shortages": shortages}
+        if not was_delayed:
+            sales_repository.update(order_id, {"status": "DELAYED"})
+            
+            audit_log_repository.create({
+                "user_id": user_id,
+                "user_name": user_name,
+                "action": "Delayed Sales Order (Shortage)",
+                "entity_type": "SalesOrder",
+                "reference_id": order_id,
+            })
+            
+            result_data = {"order": sales_repository.find_by_id(order_id)}
+            if auto_procurements:
+                result_data["auto_procurements"] = auto_procurements
+            return True, "Order delayed pending stock", result_data
+        else:
+            return False, "Still waiting for stock to arrive", None
 
-    # All good or auto-procurement triggered
+    # All good
     sales_repository.update(order_id, {"status": "CONFIRMED"})
 
     # Audit log
