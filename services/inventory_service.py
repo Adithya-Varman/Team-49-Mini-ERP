@@ -14,7 +14,7 @@ def reserve_stock(product_id, qty, user_id="", user_name=""):
     free = get_free_qty(product)
     if free < qty:
         return False, f"Insufficient free stock. Available: {free}, Requested: {qty}"
-    product["reserved_qty"] += qty
+    product_repository.update(product_id, {"reserved_qty": product["reserved_qty"] + qty})
     return True, "Stock reserved"
 
 
@@ -23,7 +23,7 @@ def release_stock(product_id, qty):
     product = product_repository.find_by_id(product_id)
     if not product:
         return False, "Product not found"
-    product["reserved_qty"] = max(0, product["reserved_qty"] - qty)
+    product_repository.update(product_id, {"reserved_qty": max(0, product["reserved_qty"] - qty)})
     return True, "Stock released"
 
 
@@ -32,8 +32,10 @@ def consume_stock(product_id, qty, reason, reference, user_id="", user_name=""):
     product = product_repository.find_by_id(product_id)
     if not product:
         return False, "Product not found"
-    product["on_hand_qty"] -= qty
-    product["reserved_qty"] = max(0, product["reserved_qty"] - qty)
+    product_repository.update(product_id, {
+        "on_hand_qty": product["on_hand_qty"] - qty,
+        "reserved_qty": max(0, product["reserved_qty"] - qty),
+    })
     # Create stock ledger entry
     stock_ledger_repository.create({
         "product_id": product_id,
@@ -43,7 +45,9 @@ def consume_stock(product_id, qty, reason, reference, user_id="", user_name=""):
         "user_id": user_id,
         "user_name": user_name,
     })
-    check_low_stock(product)
+    # Re-fetch after update for low stock check
+    updated_product = product_repository.find_by_id(product_id)
+    check_low_stock(updated_product)
     return True, "Stock consumed"
 
 
@@ -52,7 +56,7 @@ def add_stock(product_id, qty, reason, reference, user_id="", user_name=""):
     product = product_repository.find_by_id(product_id)
     if not product:
         return False, "Product not found"
-    product["on_hand_qty"] += qty
+    product_repository.update(product_id, {"on_hand_qty": product["on_hand_qty"] + qty})
     # Create stock ledger entry
     stock_ledger_repository.create({
         "product_id": product_id,
@@ -62,7 +66,9 @@ def add_stock(product_id, qty, reason, reference, user_id="", user_name=""):
         "user_id": user_id,
         "user_name": user_name,
     })
-    check_low_stock(product)
+    # Re-fetch after update for low stock check
+    updated_product = product_repository.find_by_id(product_id)
+    check_low_stock(updated_product)
     return True, "Stock added"
 
 

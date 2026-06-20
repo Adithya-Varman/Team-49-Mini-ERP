@@ -117,8 +117,11 @@ def deliver_order(order_id, delivery_items, user_id="", user_name=""):
             user_id, user_name
         )
 
-        # Update delivered qty
+        # Update delivered qty in the items array
         order_item["delivered_qty"] += deliver_qty
+
+    # Save updated items back to MongoDB
+    sales_repository.update(order_id, {"items": order["items"]})
 
     # Check if fully delivered
     all_delivered = all(

@@ -47,7 +47,7 @@ async function startMO(id){
 }
 function showCompleteMOModal(id, remaining) {
     openModal('Complete Production', `<form id="comp-form">
-        <div class="form-group"><label>Completed Quantity (max: ${remaining})</label><input type="number" id="comp-qty" min="1" max="${remaining}" value="${remaining}" required></div>
+        <div class="form-group"><label>Completed Quantity (remaining: ${remaining})</label><input type="number" id="comp-qty" min="1" value="${remaining}" required></div>
         <button type="submit" class="btn btn-primary btn-block">Complete</button></form>`);
     document.getElementById('comp-form').onsubmit = async(e)=>{
         e.preventDefault();

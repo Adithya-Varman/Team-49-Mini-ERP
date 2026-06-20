@@ -55,7 +55,7 @@ async function confirmPO(id){try{await api.post(`/purchase-orders/${id}/confirm`
 async function showReceiveModal(id) {
     const order = await api.get(`/purchase-orders/${id}`);
     openModal('Receive Items', `<form id="rcv-form">
-        ${order.items.map(i=>{const rem=i.quantity-i.received_qty;return rem>0?`<div class="form-group"><label>${i.product_name} (Remaining: ${rem})</label><input type="number" class="rcv-qty" data-pid="${i.product_id}" max="${rem}" min="0" value="${rem}"></div>`:''}).join('')}
+        ${order.items.map(i=>{const rem=i.quantity-i.received_qty;return rem>0?`<div class="form-group"><label>${i.product_name} (Remaining: ${rem})</label><input type="number" class="rcv-qty" data-pid="${i.product_id}" min="0" value="${rem}"></div>`:''}).join('')}
         <button type="submit" class="btn btn-primary btn-block">Process Receipt</button></form>`);
     document.getElementById('rcv-form').onsubmit = async(e)=>{
         e.preventDefault();

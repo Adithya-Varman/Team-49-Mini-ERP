@@ -1,15 +1,14 @@
 import uuid
 import datetime
-
-_store = []
+from database import stock_ledger_col, _serialize, _serialize_list
 
 
 def find_all(filters=None):
-    results = _store
+    query = {}
     if filters:
         if "product_id" in filters:
-            results = [r for r in results if r["product_id"] == filters["product_id"]]
-    return sorted(results, key=lambda x: x["date"], reverse=True)
+            query["product_id"] = filters["product_id"]
+    return _serialize_list(stock_ledger_col.find(query).sort("date", -1))
 
 
 def create(data):
@@ -23,5 +22,5 @@ def create(data):
         "user_id": data.get("user_id", ""),
         "user_name": data.get("user_name", ""),
     }
-    _store.append(entry)
-    return entry
+    stock_ledger_col.insert_one(entry)
+    return _serialize(entry)

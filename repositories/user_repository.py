@@ -1,12 +1,13 @@
 import uuid
 import datetime
 import bcrypt
-
-_store = []
+from database import users_col, _serialize, _serialize_list
 
 
 def _seed():
-    """Seed default users on startup."""
+    """Seed default users on startup (only if no users exist)."""
+    if users_col.count_documents({}) > 0:
+        return
     defaults = [
         {"name": "Admin", "email": "admin@erp.com", "password": "password", "role": "ADMIN"},
         {"name": "Sales", "email": "sales@erp.com", "password": "password", "role": "SALES"},
@@ -23,25 +24,19 @@ def _seed():
 
 
 def find_all(filters=None):
-    results = _store
+    query = {}
     if filters:
         for key, val in filters.items():
-            results = [r for r in results if r.get(key) == val]
-    return results
+            query[key] = val
+    return _serialize_list(users_col.find(query))
 
 
 def find_by_id(user_id):
-    for u in _store:
-        if u["id"] == user_id:
-            return u
-    return None
+    return _serialize(users_col.find_one({"id": user_id}))
 
 
 def find_by_email(email):
-    for u in _store:
-        if u["email"] == email:
-            return u
-    return None
+    return _serialize(users_col.find_one({"email": email}))
 
 
 def create(data):
@@ -54,31 +49,31 @@ def create(data):
         "created_at": datetime.datetime.utcnow().isoformat(),
         "updated_at": datetime.datetime.utcnow().isoformat(),
     }
-    _store.append(user)
-    return user
+    users_col.insert_one(user)
+    return _serialize(user)
 
 
 def update(user_id, data):
     user = find_by_id(user_id)
     if not user:
         return None
+    update_fields = {}
     if "name" in data and data["name"] is not None:
-        user["name"] = data["name"]
+        update_fields["name"] = data["name"]
     if "email" in data and data["email"] is not None:
-        user["email"] = data["email"]
+        update_fields["email"] = data["email"]
     if "password" in data and data["password"] is not None:
-        user["password_hash"] = bcrypt.hashpw(data["password"].encode('utf-8'), bcrypt.gensalt()).decode('utf-8')
+        update_fields["password_hash"] = bcrypt.hashpw(data["password"].encode('utf-8'), bcrypt.gensalt()).decode('utf-8')
     if "role" in data and data["role"] is not None:
-        user["role"] = data["role"]
-    user["updated_at"] = datetime.datetime.utcnow().isoformat()
-    return user
+        update_fields["role"] = data["role"]
+    update_fields["updated_at"] = datetime.datetime.utcnow().isoformat()
+    users_col.update_one({"id": user_id}, {"$set": update_fields})
+    return find_by_id(user_id)
 
 
 def delete(user_id):
-    global _store
-    before = len(_store)
-    _store = [u for u in _store if u["id"] != user_id]
-    return len(_store) < before
+    result = users_col.delete_one({"id": user_id})
+    return result.deleted_count > 0
 
 
 def verify_password(plain_password, hashed_password):

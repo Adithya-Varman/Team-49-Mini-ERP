@@ -71,7 +71,7 @@ async function confirmSO(id) {
 async function showDeliverModal(id) {
     const order = await api.get(`/sales-orders/${id}`);
     openModal('Deliver Items', `<form id="del-form">
-        ${order.items.map(i=>{const rem=i.quantity-i.delivered_qty;return rem>0?`<div class="form-group"><label>${i.product_name} (Remaining: ${rem})</label><input type="number" class="del-qty" data-pid="${i.product_id}" max="${rem}" min="0" value="${rem}"></div>`:''}).join('')}
+        ${order.items.map(i=>{const rem=i.quantity-i.delivered_qty;return rem>0?`<div class="form-group"><label>${i.product_name} (Remaining: ${rem})</label><input type="number" class="del-qty" data-pid="${i.product_id}" min="0" value="${rem}"></div>`:''}).join('')}
         <button type="submit" class="btn btn-primary btn-block">Process Delivery</button></form>`);
     document.getElementById('del-form').onsubmit = async(e)=>{
         e.preventDefault();

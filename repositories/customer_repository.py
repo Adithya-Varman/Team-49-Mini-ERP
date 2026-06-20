@@ -1,23 +1,22 @@
 import uuid
 import datetime
-
-_store = []
+from database import customers_col, _serialize, _serialize_list
 
 
 def find_all(filters=None):
-    results = _store
+    query = {}
     if filters:
         if "search" in filters:
-            q = filters["search"].lower()
-            results = [r for r in results if q in r["name"].lower() or q in r.get("email", "").lower()]
-    return results
+            q = filters["search"]
+            query["$or"] = [
+                {"name": {"$regex": q, "$options": "i"}},
+                {"email": {"$regex": q, "$options": "i"}},
+            ]
+    return _serialize_list(customers_col.find(query))
 
 
 def find_by_id(customer_id):
-    for c in _store:
-        if c["id"] == customer_id:
-            return c
-    return None
+    return _serialize(customers_col.find_one({"id": customer_id}))
 
 
 def create(data):
@@ -30,23 +29,23 @@ def create(data):
         "created_at": datetime.datetime.utcnow().isoformat(),
         "updated_at": datetime.datetime.utcnow().isoformat(),
     }
-    _store.append(customer)
-    return customer
+    customers_col.insert_one(customer)
+    return _serialize(customer)
 
 
 def update(customer_id, data):
     customer = find_by_id(customer_id)
     if not customer:
         return None
+    update_fields = {}
     for field in ["name", "phone", "email", "address"]:
         if field in data and data[field] is not None:
-            customer[field] = data[field]
-    customer["updated_at"] = datetime.datetime.utcnow().isoformat()
-    return customer
+            update_fields[field] = data[field]
+    update_fields["updated_at"] = datetime.datetime.utcnow().isoformat()
+    customers_col.update_one({"id": customer_id}, {"$set": update_fields})
+    return find_by_id(customer_id)
 
 
 def delete(customer_id):
-    global _store
-    before = len(_store)
-    _store = [c for c in _store if c["id"] != customer_id]
-    return len(_store) < before
+    result = customers_col.delete_one({"id": customer_id})
+    return result.deleted_count > 0

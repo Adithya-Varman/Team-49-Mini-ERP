@@ -1,32 +1,28 @@
 import uuid
 import datetime
-
-_store = []
+from database import products_col, _serialize, _serialize_list
 
 
 def find_all(filters=None):
-    results = _store
+    query = {}
     if filters:
         if "search" in filters:
-            q = filters["search"].lower()
-            results = [r for r in results if q in r["name"].lower() or q in r["sku"].lower()]
+            q = filters["search"]
+            query["$or"] = [
+                {"name": {"$regex": q, "$options": "i"}},
+                {"sku": {"$regex": q, "$options": "i"}},
+            ]
         if "type" in filters:
-            results = [r for r in results if r["type"] == filters["type"]]
-    return results
+            query["type"] = filters["type"]
+    return _serialize_list(products_col.find(query))
 
 
 def find_by_id(product_id):
-    for p in _store:
-        if p["id"] == product_id:
-            return p
-    return None
+    return _serialize(products_col.find_one({"id": product_id}))
 
 
 def find_by_sku(sku):
-    for p in _store:
-        if p["sku"] == sku:
-            return p
-    return None
+    return _serialize(products_col.find_one({"sku": sku}))
 
 
 def create(data):
@@ -49,8 +45,8 @@ def create(data):
         "created_at": datetime.datetime.utcnow().isoformat(),
         "updated_at": datetime.datetime.utcnow().isoformat(),
     }
-    _store.append(product)
-    return product
+    products_col.insert_one(product)
+    return _serialize(product)
 
 
 def update(product_id, data):
@@ -63,15 +59,15 @@ def update(product_id, data):
         "procurement_strategy", "procure_on_demand", "procurement_type",
         "default_supplier_id"
     ]
+    update_fields = {}
     for field in updatable:
         if field in data and data[field] is not None:
-            product[field] = data[field]
-    product["updated_at"] = datetime.datetime.utcnow().isoformat()
-    return product
+            update_fields[field] = data[field]
+    update_fields["updated_at"] = datetime.datetime.utcnow().isoformat()
+    products_col.update_one({"id": product_id}, {"$set": update_fields})
+    return find_by_id(product_id)
 
 
 def delete(product_id):
-    global _store
-    before = len(_store)
-    _store = [p for p in _store if p["id"] != product_id]
-    return len(_store) < before
+    result = products_col.delete_one({"id": product_id})
+    return result.deleted_count > 0

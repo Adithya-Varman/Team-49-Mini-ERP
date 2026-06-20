@@ -62,6 +62,9 @@ def receive_order(order_id, receive_items, user_id="", user_name=""):
         # Update received qty
         order_item["received_qty"] += receive_qty
 
+    # Save updated items back to MongoDB
+    purchase_repository.update(order_id, {"items": order["items"]})
+
     # Check if fully received
     all_received = all(
         item["received_qty"] >= item["quantity"] for item in order["items"]

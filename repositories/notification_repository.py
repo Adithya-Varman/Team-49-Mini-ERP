@@ -1,26 +1,22 @@
 import uuid
 import datetime
-
-_store = []
+from database import notifications_col, _serialize, _serialize_list
 
 
 def find_all(filters=None):
-    results = _store
+    query = {}
     if filters:
         if "target_role" in filters:
-            results = [r for r in results if r["target_role"] == filters["target_role"]]
+            query["target_role"] = filters["target_role"]
         if "is_read" in filters:
-            results = [r for r in results if r["is_read"] == filters["is_read"]]
+            query["is_read"] = filters["is_read"]
         if "type" in filters:
-            results = [r for r in results if r["type"] == filters["type"]]
-    return sorted(results, key=lambda x: x["timestamp"], reverse=True)
+            query["type"] = filters["type"]
+    return _serialize_list(notifications_col.find(query).sort("timestamp", -1))
 
 
 def find_by_id(notif_id):
-    for n in _store:
-        if n["id"] == notif_id:
-            return n
-    return None
+    return _serialize(notifications_col.find_one({"id": notif_id}))
 
 
 def create(data):
@@ -33,17 +29,16 @@ def create(data):
         "is_read": False,
         "timestamp": datetime.datetime.utcnow().isoformat(),
     }
-    _store.append(notif)
-    return notif
+    notifications_col.insert_one(notif)
+    return _serialize(notif)
 
 
 def mark_read(notif_id):
-    notif = find_by_id(notif_id)
-    if notif:
-        notif["is_read"] = True
-        return notif
+    result = notifications_col.update_one({"id": notif_id}, {"$set": {"is_read": True}})
+    if result.modified_count > 0:
+        return find_by_id(notif_id)
     return None
 
 
 def count_unread(role):
-    return len([n for n in _store if n["target_role"] == role and not n["is_read"]])
+    return notifications_col.count_documents({"target_role": role, "is_read": False})

@@ -50,7 +50,17 @@ app.include_router(dashboard_routes.router)
 
 
 def seed_data():
-    """Seed initial data for testing."""
+    """Seed initial data for testing. Only seeds if database is empty."""
+    from database import products_col, init_collections
+
+    # Ensure all collections exist in MongoDB
+    init_collections()
+
+    # Guard: skip seeding if data already exists in MongoDB
+    if products_col.count_documents({}) > 0:
+        print("Database already has data — skipping seed.")
+        return
+
     # Seed users
     user_repository._seed()
 
@@ -116,6 +126,11 @@ def seed_data():
             {"component_id": p_screws["id"], "quantity": 12},
         ]
     })
+
+    # Seed 50 furniture-context products (raw materials, sub-assemblies, finished furniture)
+    from seed_products import get_extra_products
+    for p_data in get_extra_products(s1["id"], s2["id"], s3["id"]):
+        product_repository.create(p_data)
 
     print("Seed data loaded successfully!")
 
