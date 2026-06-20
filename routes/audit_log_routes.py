@@ -1,6 +1,6 @@
 from fastapi import APIRouter, Depends, Query
 from repositories import audit_log_repository
-from auth.dependencies import get_current_user
+from auth.dependencies import get_current_active_user
 
 router = APIRouter(prefix="/api/audit-logs", tags=["Audit Logs"])
 
@@ -9,7 +9,7 @@ router = APIRouter(prefix="/api/audit-logs", tags=["Audit Logs"])
 def list_logs(
     entity_type: str = Query(None),
     search: str = Query(None),
-    user: dict = Depends(get_current_user)
+    user: dict = Depends(get_current_active_user)
 ):
     filters = {}
     # Non-admins can only see their own logs

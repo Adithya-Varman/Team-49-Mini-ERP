@@ -1,7 +1,7 @@
 from fastapi import APIRouter, Depends, HTTPException, Query
 from models.manufacturing_order import ManufacturingOrderCreate, ManufacturingOrderComplete
 from repositories import manufacturing_repository, product_repository, bom_repository, audit_log_repository
-from auth.dependencies import get_current_user
+from auth.dependencies import require_manufacturing
 from services import manufacturing_service
 
 router = APIRouter(prefix="/api/manufacturing-orders", tags=["Manufacturing Orders"])
@@ -13,7 +13,7 @@ def _enrich_order(order):
 
 
 @router.get("")
-def list_orders(status: str = Query(None), search: str = Query(None), user: dict = Depends(get_current_user)):
+def list_orders(status: str = Query(None), search: str = Query(None), user: dict = Depends(require_manufacturing)):
     filters = {}
     if status: filters["status"] = status
     if search: filters["search"] = search
@@ -22,14 +22,14 @@ def list_orders(status: str = Query(None), search: str = Query(None), user: dict
 
 
 @router.get("/{order_id}")
-def get_order(order_id: str, user: dict = Depends(get_current_user)):
+def get_order(order_id: str, user: dict = Depends(require_manufacturing)):
     order = manufacturing_repository.find_by_id(order_id)
     if not order: raise HTTPException(status_code=404, detail="Order not found")
     return _enrich_order(order)
 
 
 @router.post("")
-def create_order(data: ManufacturingOrderCreate, user: dict = Depends(get_current_user)):
+def create_order(data: ManufacturingOrderCreate, user: dict = Depends(require_manufacturing)):
     product = product_repository.find_by_id(data.product_id)
     if not product: raise HTTPException(status_code=404, detail="Product not found")
     bom = bom_repository.find_by_product_id(data.product_id)
@@ -40,7 +40,7 @@ def create_order(data: ManufacturingOrderCreate, user: dict = Depends(get_curren
 
 
 @router.post("/{order_id}/confirm")
-def confirm_order(order_id: str, user: dict = Depends(get_current_user)):
+def confirm_order(order_id: str, user: dict = Depends(require_manufacturing)):
     success, message, data = manufacturing_service.confirm_order(order_id, user["sub"], user["email"])
     if not success: raise HTTPException(status_code=400, detail=message)
     order = manufacturing_repository.find_by_id(order_id)
@@ -48,7 +48,7 @@ def confirm_order(order_id: str, user: dict = Depends(get_current_user)):
 
 
 @router.post("/{order_id}/start")
-def start_production(order_id: str, user: dict = Depends(get_current_user)):
+def start_production(order_id: str, user: dict = Depends(require_manufacturing)):
     success, message, data = manufacturing_service.start_production(order_id, user["sub"], user["email"])
     if not success: raise HTTPException(status_code=400, detail={"message": message, "data": data})
     order = manufacturing_repository.find_by_id(order_id)
@@ -56,7 +56,7 @@ def start_production(order_id: str, user: dict = Depends(get_current_user)):
 
 
 @router.post("/{order_id}/complete")
-def complete_production(order_id: str, data: ManufacturingOrderComplete, user: dict = Depends(get_current_user)):
+def complete_production(order_id: str, data: ManufacturingOrderComplete, user: dict = Depends(require_manufacturing)):
     success, message = manufacturing_service.complete_production(order_id, data.completed_qty, user["sub"], user["email"])
     if not success: raise HTTPException(status_code=400, detail=message)
     order = manufacturing_repository.find_by_id(order_id)
@@ -64,7 +64,7 @@ def complete_production(order_id: str, data: ManufacturingOrderComplete, user: d
 
 
 @router.post("/{order_id}/cancel")
-def cancel_order(order_id: str, user: dict = Depends(get_current_user)):
+def cancel_order(order_id: str, user: dict = Depends(require_manufacturing)):
     success, message = manufacturing_service.cancel_order(order_id, user["sub"], user["email"])
     if not success: raise HTTPException(status_code=400, detail=message)
     return {"message": message}

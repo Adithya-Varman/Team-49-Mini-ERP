@@ -16,14 +16,14 @@ def login(data: UserLogin):
 
     token = create_token(user["id"], user["email"], user["role"])
     return {
-        "token": token,
-        "user": {
-            "id": user["id"],
-            "name": user["name"],
-            "email": user["email"],
-            "role": user["role"],
-        }
+        "access_token": token,
+        "token_type": "bearer",
+        "role": user["role"]
     }
+
+@router.post("/logout")
+def logout():
+    return {"message": "Successfully logged out"}
 
 
 @router.get("/me")

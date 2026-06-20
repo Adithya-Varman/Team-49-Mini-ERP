@@ -1,6 +1,6 @@
 from fastapi import APIRouter, Depends, Query
 from repositories import product_repository, stock_ledger_repository
-from auth.dependencies import get_current_user
+from auth.dependencies import get_current_active_user
 from services.inventory_service import get_free_qty, check_all_low_stock
 
 router = APIRouter(prefix="/api/inventory", tags=["Inventory"])
@@ -10,7 +10,7 @@ router = APIRouter(prefix="/api/inventory", tags=["Inventory"])
 def list_inventory(
     type: str = Query(None),
     search: str = Query(None),
-    user: dict = Depends(get_current_user)
+    user: dict = Depends(get_current_active_user)
 ):
     filters = {}
     if type:
@@ -36,5 +36,5 @@ def list_inventory(
 
 
 @router.get("/low-stock")
-def get_low_stock_alerts(user: dict = Depends(get_current_user)):
+def get_low_stock_alerts(user: dict = Depends(get_current_active_user)):
     return check_all_low_stock()

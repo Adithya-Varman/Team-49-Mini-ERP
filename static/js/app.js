@@ -84,17 +84,17 @@ function showLogin() {
 function showMainApp() {
     document.getElementById('login-page').style.display = 'none';
     document.getElementById('main-app').style.display = 'flex';
-    const user = getUser();
-    document.getElementById('user-role-badge').textContent = user.role;
-    document.getElementById('user-name-display').textContent = user.name;
+    const role = localStorage.getItem('erp_role');
+    document.getElementById('user-role-badge').textContent = role;
+    document.getElementById('user-name-display').textContent = role + " User";
     renderNav();
     navigate('dashboard');
     loadNotifCount();
 }
 
 function renderNav() {
-    const user = getUser();
-    const menu = MENU_CONFIG[user.role] || [];
+    const role = localStorage.getItem('erp_role');
+    const menu = MENU_CONFIG[role] || [];
     const nav = document.getElementById('sidebar-nav');
     nav.innerHTML = menu.map(m =>
         `<div class="nav-item${m.id === currentPage ? ' active' : ''}" data-page="${m.id}">${m.icon} ${m.label}${m.id === 'notifications' ? `<span class="notif-count" id="nav-notif-count" style="display:none">0</span>` : ''}</div>`
@@ -154,8 +154,10 @@ document.getElementById('login-form').addEventListener('submit', async (e) => {
     const password = document.getElementById('login-password').value;
     try {
         const data = await api.post('/auth/login', { email, password });
-        localStorage.setItem('erp_token', data.token);
-        localStorage.setItem('erp_user', JSON.stringify(data.user));
+        localStorage.setItem('erp_token', data.access_token);
+        localStorage.setItem('erp_role', data.role);
+        // Also mock a user object for legacy code if needed
+        localStorage.setItem('erp_user', JSON.stringify({ role: data.role, name: data.role + " User" }));
         showMainApp();
     } catch(err) {
         document.getElementById('login-error').textContent = err.message || 'Login failed';
@@ -165,6 +167,7 @@ document.getElementById('login-form').addEventListener('submit', async (e) => {
 document.getElementById('logout-btn').addEventListener('click', () => {
     localStorage.removeItem('erp_token');
     localStorage.removeItem('erp_user');
+    localStorage.removeItem('erp_role');
     showLogin();
 });
 

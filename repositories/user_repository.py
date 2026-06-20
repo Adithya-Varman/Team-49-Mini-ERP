@@ -1,7 +1,7 @@
 import uuid
 import datetime
-import bcrypt
 from database import users_col, _serialize, _serialize_list
+from security import hash_password, verify_password as sec_verify_password
 
 
 def _seed():
@@ -44,7 +44,7 @@ def create(data):
         "id": str(uuid.uuid4()),
         "name": data["name"],
         "email": data["email"],
-        "password_hash": bcrypt.hashpw(data["password"].encode('utf-8'), bcrypt.gensalt()).decode('utf-8'),
+        "password_hash": hash_password(data["password"]),
         "role": data["role"],
         "created_at": datetime.datetime.utcnow().isoformat(),
         "updated_at": datetime.datetime.utcnow().isoformat(),
@@ -63,7 +63,7 @@ def update(user_id, data):
     if "email" in data and data["email"] is not None:
         update_fields["email"] = data["email"]
     if "password" in data and data["password"] is not None:
-        update_fields["password_hash"] = bcrypt.hashpw(data["password"].encode('utf-8'), bcrypt.gensalt()).decode('utf-8')
+        update_fields["password_hash"] = hash_password(data["password"])
     if "role" in data and data["role"] is not None:
         update_fields["role"] = data["role"]
     update_fields["updated_at"] = datetime.datetime.utcnow().isoformat()
@@ -77,4 +77,4 @@ def delete(user_id):
 
 
 def verify_password(plain_password, hashed_password):
-    return bcrypt.checkpw(plain_password.encode('utf-8'), hashed_password.encode('utf-8'))
+    return sec_verify_password(plain_password, hashed_password)

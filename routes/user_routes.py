@@ -1,15 +1,13 @@
 from fastapi import APIRouter, Depends, HTTPException
 from models.user import UserCreate, UserUpdate
 from repositories import user_repository, audit_log_repository
-from auth.dependencies import get_current_user, RoleChecker
+from auth.dependencies import require_admin
 
 router = APIRouter(prefix="/api/users", tags=["Users"])
 
-admin_only = RoleChecker(["ADMIN"])
-
 
 @router.get("")
-def list_users(user: dict = Depends(admin_only)):
+def list_users(user: dict = Depends(require_admin)):
     users = user_repository.find_all()
     return [
         {
@@ -24,7 +22,7 @@ def list_users(user: dict = Depends(admin_only)):
 
 
 @router.post("")
-def create_user(data: UserCreate, user: dict = Depends(admin_only)):
+def create_user(data: UserCreate, user: dict = Depends(require_admin)):
     # Check duplicate email
     existing = user_repository.find_by_email(data.email)
     if existing:
@@ -50,7 +48,7 @@ def create_user(data: UserCreate, user: dict = Depends(admin_only)):
 
 
 @router.put("/{user_id}")
-def update_user(user_id: str, data: UserUpdate, user: dict = Depends(admin_only)):
+def update_user(user_id: str, data: UserUpdate, user: dict = Depends(require_admin)):
     updated = user_repository.update(user_id, data.model_dump(exclude_none=True))
     if not updated:
         raise HTTPException(status_code=404, detail="User not found")
@@ -73,7 +71,7 @@ def update_user(user_id: str, data: UserUpdate, user: dict = Depends(admin_only)
 
 
 @router.delete("/{user_id}")
-def delete_user(user_id: str, user: dict = Depends(admin_only)):
+def delete_user(user_id: str, user: dict = Depends(require_admin)):
     if user["sub"] == user_id:
         raise HTTPException(status_code=400, detail="Cannot delete yourself")
     deleted = user_repository.delete(user_id)

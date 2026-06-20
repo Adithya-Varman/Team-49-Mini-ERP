@@ -3,7 +3,7 @@ import datetime
 
 SECRET_KEY = "mini-erp-hackathon-secret-key-2024"
 ALGORITHM = "HS256"
-ACCESS_TOKEN_EXPIRE_MINUTES = 480  # 8 hours
+ACCESS_TOKEN_EXPIRE_MINUTES = 1440  # 24 hours
 
 
 def create_token(user_id: str, email: str, role: str) -> str:

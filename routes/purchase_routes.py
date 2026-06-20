@@ -1,7 +1,7 @@
 from fastapi import APIRouter, Depends, HTTPException, Query
 from models.purchase_order import PurchaseOrderCreate, PurchaseOrderReceive
 from repositories import purchase_repository, product_repository, supplier_repository, audit_log_repository
-from auth.dependencies import get_current_user
+from auth.dependencies import require_purchase
 from services import purchase_service
 
 router = APIRouter(prefix="/api/purchase-orders", tags=["Purchase Orders"])
@@ -19,7 +19,7 @@ def _enrich_order(order):
 
 
 @router.get("")
-def list_orders(status: str = Query(None), search: str = Query(None), user: dict = Depends(get_current_user)):
+def list_orders(status: str = Query(None), search: str = Query(None), user: dict = Depends(require_purchase)):
     filters = {}
     if status: filters["status"] = status
     if search: filters["search"] = search
@@ -28,14 +28,14 @@ def list_orders(status: str = Query(None), search: str = Query(None), user: dict
 
 
 @router.get("/{order_id}")
-def get_order(order_id: str, user: dict = Depends(get_current_user)):
+def get_order(order_id: str, user: dict = Depends(require_purchase)):
     order = purchase_repository.find_by_id(order_id)
     if not order: raise HTTPException(status_code=404, detail="Order not found")
     return _enrich_order(order)
 
 
 @router.post("")
-def create_order(data: PurchaseOrderCreate, user: dict = Depends(get_current_user)):
+def create_order(data: PurchaseOrderCreate, user: dict = Depends(require_purchase)):
     supplier = supplier_repository.find_by_id(data.supplier_id)
     if not supplier: raise HTTPException(status_code=404, detail="Supplier not found")
     items = []
@@ -49,7 +49,7 @@ def create_order(data: PurchaseOrderCreate, user: dict = Depends(get_current_use
 
 
 @router.post("/{order_id}/confirm")
-def confirm_order(order_id: str, user: dict = Depends(get_current_user)):
+def confirm_order(order_id: str, user: dict = Depends(require_purchase)):
     success, message = purchase_service.confirm_order(order_id, user["sub"], user["email"])
     if not success: raise HTTPException(status_code=400, detail=message)
     order = purchase_repository.find_by_id(order_id)
@@ -57,7 +57,7 @@ def confirm_order(order_id: str, user: dict = Depends(get_current_user)):
 
 
 @router.post("/{order_id}/receive")
-def receive_order(order_id: str, data: PurchaseOrderReceive, user: dict = Depends(get_current_user)):
+def receive_order(order_id: str, data: PurchaseOrderReceive, user: dict = Depends(require_purchase)):
     success, message = purchase_service.receive_order(order_id, data.items, user["sub"], user["email"])
     if not success: raise HTTPException(status_code=400, detail=message)
     order = purchase_repository.find_by_id(order_id)
@@ -65,7 +65,7 @@ def receive_order(order_id: str, data: PurchaseOrderReceive, user: dict = Depend
 
 
 @router.post("/{order_id}/cancel")
-def cancel_order(order_id: str, user: dict = Depends(get_current_user)):
+def cancel_order(order_id: str, user: dict = Depends(require_purchase)):
     success, message = purchase_service.cancel_order(order_id, user["sub"], user["email"])
     if not success: raise HTTPException(status_code=400, detail=message)
     return {"message": message}

@@ -1,7 +1,7 @@
 from fastapi import APIRouter, Depends, HTTPException, Query
 from models.product import ProductCreate, ProductUpdate
 from repositories import product_repository, audit_log_repository
-from auth.dependencies import get_current_user
+from auth.dependencies import get_current_active_user
 from services.inventory_service import get_free_qty
 
 router = APIRouter(prefix="/api/products", tags=["Products"])
@@ -18,7 +18,7 @@ def _product_response(p):
 def list_products(
     search: str = Query(None),
     type: str = Query(None),
-    user: dict = Depends(get_current_user)
+    user: dict = Depends(get_current_active_user)
 ):
     filters = {}
     if search:
@@ -30,7 +30,7 @@ def list_products(
 
 
 @router.get("/{product_id}")
-def get_product(product_id: str, user: dict = Depends(get_current_user)):
+def get_product(product_id: str, user: dict = Depends(get_current_active_user)):
     product = product_repository.find_by_id(product_id)
     if not product:
         raise HTTPException(status_code=404, detail="Product not found")
@@ -38,7 +38,7 @@ def get_product(product_id: str, user: dict = Depends(get_current_user)):
 
 
 @router.post("")
-def create_product(data: ProductCreate, user: dict = Depends(get_current_user)):
+def create_product(data: ProductCreate, user: dict = Depends(get_current_active_user)):
     # Check duplicate SKU
     existing = product_repository.find_by_sku(data.sku)
     if existing:
@@ -58,7 +58,7 @@ def create_product(data: ProductCreate, user: dict = Depends(get_current_user)):
 
 
 @router.put("/{product_id}")
-def update_product(product_id: str, data: ProductUpdate, user: dict = Depends(get_current_user)):
+def update_product(product_id: str, data: ProductUpdate, user: dict = Depends(get_current_active_user)):
     updated = product_repository.update(product_id, data.model_dump(exclude_none=True))
     if not updated:
         raise HTTPException(status_code=404, detail="Product not found")
@@ -75,7 +75,7 @@ def update_product(product_id: str, data: ProductUpdate, user: dict = Depends(ge
 
 
 @router.delete("/{product_id}")
-def delete_product(product_id: str, user: dict = Depends(get_current_user)):
+def delete_product(product_id: str, user: dict = Depends(get_current_active_user)):
     deleted = product_repository.delete(product_id)
     if not deleted:
         raise HTTPException(status_code=404, detail="Product not found")

@@ -4,14 +4,14 @@ from repositories import (
     purchase_repository, manufacturing_repository,
     notification_repository, audit_log_repository
 )
-from auth.dependencies import get_current_user
+from auth.dependencies import get_current_active_user
 from services.inventory_service import check_all_low_stock
 
 router = APIRouter(prefix="/api/dashboard", tags=["Dashboard"])
 
 
 @router.get("")
-def get_dashboard(user: dict = Depends(get_current_user)):
+def get_dashboard(user: dict = Depends(get_current_active_user)):
     role = user["role"]
 
     if role == "ADMIN":

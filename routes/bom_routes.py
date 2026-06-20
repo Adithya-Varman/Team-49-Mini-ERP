@@ -1,7 +1,7 @@
 from fastapi import APIRouter, Depends, HTTPException
 from models.bom import BomCreate, BomUpdate
 from repositories import bom_repository, product_repository, audit_log_repository
-from auth.dependencies import get_current_user
+from auth.dependencies import require_manufacturing
 
 router = APIRouter(prefix="/api/bom", tags=["BoM"])
 
@@ -23,13 +23,13 @@ def _enrich_bom(bom):
 
 
 @router.get("")
-def list_boms(user: dict = Depends(get_current_user)):
+def list_boms(user: dict = Depends(require_manufacturing)):
     boms = bom_repository.find_all()
     return [_enrich_bom(b) for b in boms]
 
 
 @router.get("/{bom_id}")
-def get_bom(bom_id: str, user: dict = Depends(get_current_user)):
+def get_bom(bom_id: str, user: dict = Depends(require_manufacturing)):
     bom = bom_repository.find_by_id(bom_id)
     if not bom:
         raise HTTPException(status_code=404, detail="BoM not found")
@@ -37,7 +37,7 @@ def get_bom(bom_id: str, user: dict = Depends(get_current_user)):
 
 
 @router.get("/product/{product_id}")
-def get_bom_by_product(product_id: str, user: dict = Depends(get_current_user)):
+def get_bom_by_product(product_id: str, user: dict = Depends(require_manufacturing)):
     bom = bom_repository.find_by_product_id(product_id)
     if not bom:
         raise HTTPException(status_code=404, detail="BoM not found for this product")
@@ -45,7 +45,7 @@ def get_bom_by_product(product_id: str, user: dict = Depends(get_current_user)):
 
 
 @router.post("")
-def create_bom(data: BomCreate, user: dict = Depends(get_current_user)):
+def create_bom(data: BomCreate, user: dict = Depends(require_manufacturing)):
     # Check product exists
     product = product_repository.find_by_id(data.product_id)
     if not product:
@@ -80,7 +80,7 @@ def create_bom(data: BomCreate, user: dict = Depends(get_current_user)):
 
 
 @router.put("/{bom_id}")
-def update_bom(bom_id: str, data: BomUpdate, user: dict = Depends(get_current_user)):
+def update_bom(bom_id: str, data: BomUpdate, user: dict = Depends(require_manufacturing)):
     update_data = {}
     if data.product_id is not None:
         update_data["product_id"] = data.product_id
@@ -103,7 +103,7 @@ def update_bom(bom_id: str, data: BomUpdate, user: dict = Depends(get_current_us
 
 
 @router.delete("/{bom_id}")
-def delete_bom(bom_id: str, user: dict = Depends(get_current_user)):
+def delete_bom(bom_id: str, user: dict = Depends(require_manufacturing)):
     deleted = bom_repository.delete(bom_id)
     if not deleted:
         raise HTTPException(status_code=404, detail="BoM not found")

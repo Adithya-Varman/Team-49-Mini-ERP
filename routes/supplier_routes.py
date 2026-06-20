@@ -1,19 +1,19 @@
 from fastapi import APIRouter, Depends, HTTPException, Query
 from models.supplier import SupplierCreate, SupplierUpdate
 from repositories import supplier_repository, audit_log_repository
-from auth.dependencies import get_current_user
+from auth.dependencies import require_purchase
 
 router = APIRouter(prefix="/api/suppliers", tags=["Suppliers"])
 
 
 @router.get("")
-def list_suppliers(search: str = Query(None), user: dict = Depends(get_current_user)):
+def list_suppliers(search: str = Query(None), user: dict = Depends(require_purchase)):
     filters = {"search": search} if search else None
     return supplier_repository.find_all(filters)
 
 
 @router.get("/{supplier_id}")
-def get_supplier(supplier_id: str, user: dict = Depends(get_current_user)):
+def get_supplier(supplier_id: str, user: dict = Depends(require_purchase)):
     supplier = supplier_repository.find_by_id(supplier_id)
     if not supplier:
         raise HTTPException(status_code=404, detail="Supplier not found")
@@ -21,7 +21,7 @@ def get_supplier(supplier_id: str, user: dict = Depends(get_current_user)):
 
 
 @router.post("")
-def create_supplier(data: SupplierCreate, user: dict = Depends(get_current_user)):
+def create_supplier(data: SupplierCreate, user: dict = Depends(require_purchase)):
     supplier = supplier_repository.create(data.model_dump())
     audit_log_repository.create({
         "user_id": user["sub"],
@@ -34,7 +34,7 @@ def create_supplier(data: SupplierCreate, user: dict = Depends(get_current_user)
 
 
 @router.put("/{supplier_id}")
-def update_supplier(supplier_id: str, data: SupplierUpdate, user: dict = Depends(get_current_user)):
+def update_supplier(supplier_id: str, data: SupplierUpdate, user: dict = Depends(require_purchase)):
     updated = supplier_repository.update(supplier_id, data.model_dump(exclude_none=True))
     if not updated:
         raise HTTPException(status_code=404, detail="Supplier not found")
@@ -49,7 +49,7 @@ def update_supplier(supplier_id: str, data: SupplierUpdate, user: dict = Depends
 
 
 @router.delete("/{supplier_id}")
-def delete_supplier(supplier_id: str, user: dict = Depends(get_current_user)):
+def delete_supplier(supplier_id: str, user: dict = Depends(require_purchase)):
     deleted = supplier_repository.delete(supplier_id)
     if not deleted:
         raise HTTPException(status_code=404, detail="Supplier not found")

@@ -21,3 +21,10 @@ class RoleChecker:
         if user["role"] not in self.allowed_roles:
             raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Insufficient permissions")
         return user
+
+
+get_current_active_user = get_current_user
+require_admin = RoleChecker(["ADMIN"])
+require_sales = RoleChecker(["ADMIN", "SALES"])
+require_purchase = RoleChecker(["ADMIN", "PURCHASE"])
+require_manufacturing = RoleChecker(["ADMIN", "MANUFACTURING"])
