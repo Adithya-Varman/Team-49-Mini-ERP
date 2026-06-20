@@ -159,6 +159,10 @@ def seed_data():
         "created_by": "System"
     })
 
+    # Add 50 more random transactions
+    from seed_transactions import seed_random_transactions
+    seed_random_transactions()
+
 
 
 # Serve static files (frontend) - must be last
