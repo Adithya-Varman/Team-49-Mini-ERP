@@ -1,25 +1,49 @@
 // Purchase Orders Page
+const poIcon = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 2 3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4Z"/><path d="M3 6h18"/><path d="M16 10a4 4 0 0 1-8 0"/></svg>';
+
 async function renderPurchase() {
     const content = document.getElementById('page-content');
     document.getElementById('header-actions').innerHTML = '<button class="btn btn-primary" onclick="showCreatePurchaseModal()">+ New PO</button>';
     try {
         const orders = await api.get('/purchase-orders');
-        content.innerHTML = `<div class="search-bar"><input id="po-search" placeholder="Search..." oninput="filterPO()">
-        <select id="po-status" onchange="filterPO()"><option value="">All</option><option value="DRAFT">DRAFT</option><option value="CONFIRMED">CONFIRMED</option><option value="PARTIALLY_RECEIVED">PARTIAL</option><option value="FULLY_RECEIVED">RECEIVED</option><option value="CANCELLED">CANCELLED</option></select></div>
-        <div class="card"><div class="table-wrapper"><table><thead><tr><th>ID</th><th>Supplier</th><th>Items</th><th>Auto</th><th>Status</th><th>Actions</th></tr></thead>
-        <tbody id="po-tbody">${poRows(orders)}</tbody></table></div></div>`;
         window._allPO = orders;
+        content.innerHTML = `
+        <div class="search-bar">
+            <input id="po-search" placeholder="Search by PO ID or supplier..." oninput="filterPO()">
+            <select id="po-status" onchange="filterPO()"><option value="">All Status</option><option value="DRAFT">Draft</option><option value="CONFIRMED">Confirmed</option><option value="PARTIALLY_RECEIVED">Partially Received</option><option value="FULLY_RECEIVED">Received</option><option value="CANCELLED">Cancelled</option></select>
+        </div>
+        <div class="card">
+            <div class="card-header"><span class="card-title">${poIcon} Purchase Orders</span><span class="badge badge-draft" id="po-count">${orders.length}</span></div>
+            <div class="table-wrapper"><table>
+                <thead><tr><th>PO</th><th>Supplier</th><th>Items</th><th>Source</th><th>Status</th><th>Actions</th></tr></thead>
+                <tbody id="po-tbody">${poRows(orders)}</tbody></table></div>
+        </div>`;
     } catch(e) { content.innerHTML = `<p class="text-danger">${e.message}</p>`; }
 }
 function poRows(orders) {
-    return orders.map(o=>`<tr><td><strong>${o.id}</strong></td><td>${o.supplier_name}</td>
-        <td>${o.items.map(i=>`${i.quantity}x ${i.product_name}`).join(', ')}</td>
-        <td>${o.auto_generated?'⚡ Auto':'Manual'}</td><td>${statusBadge(o.status)}</td>
+    if (!orders.length) return '<tr><td colspan="6"><div class="dash-empty">No purchase orders found</div></td></tr>';
+    return orders.map(o=>`<tr>
+        <td><strong>${o.id}</strong></td>
+        <td>${o.supplier_name}</td>
+        <td><div class="cell-items">${o.items.map(i=>`<span class="item-chip">${i.quantity}× ${i.product_name}</span>`).join('')}</div></td>
+        <td>${o.auto_generated?'<span class="badge badge-auto-procurement">Auto</span>':'<span class="badge badge-draft">Manual</span>'}</td>
+        <td>${statusBadge(o.status)}</td>
         <td><div class="btn-group">
+            <button class="btn btn-sm btn-info" onclick="viewPurchaseOrder('${o.id}')">View</button>
             ${o.status==='DRAFT'?`<button class="btn btn-sm btn-success" onclick="confirmPO('${o.id}')">Confirm</button>`:''}
             ${o.status==='CONFIRMED'||o.status==='PARTIALLY_RECEIVED'?`<button class="btn btn-sm btn-primary" onclick="showReceiveModal('${o.id}')">Receive</button>`:''}
             ${o.status!=='FULLY_RECEIVED'&&o.status!=='CANCELLED'?`<button class="btn btn-sm btn-danger" onclick="cancelPO('${o.id}')">Cancel</button>`:''}
         </div></td></tr>`).join('');
+}
+async function viewPurchaseOrder(id) {
+    const o = await api.get(`/purchase-orders/${id}`);
+    openModal(`Purchase Order ${o.id}`, `<div class="detail-grid">
+        <div class="detail-item"><label>Supplier</label><span>${o.supplier_name}</span></div>
+        <div class="detail-item"><label>Status</label><span>${statusBadge(o.status)}</span></div>
+        <div class="detail-item"><label>Source</label><span>${o.auto_generated?'Auto procurement':'Manual'}</span></div>
+        <div class="detail-item"><label>Line Items</label><span>${o.items.length}</span></div>
+    </div><div class="table-wrapper mt-4"><table><thead><tr><th>Product</th><th>Ordered</th><th>Received</th></tr></thead>
+    <tbody>${o.items.map(i=>`<tr><td>${i.product_name}</td><td>${i.quantity}</td><td>${i.received_qty}/${i.quantity}</td></tr>`).join('')}</tbody></table></div>`);
 }
 function filterPO() {
     const q=document.getElementById('po-search').value.toLowerCase(),s=document.getElementById('po-status').value;
@@ -55,7 +79,7 @@ async function confirmPO(id){try{await api.post(`/purchase-orders/${id}/confirm`
 async function showReceiveModal(id) {
     const order = await api.get(`/purchase-orders/${id}`);
     openModal('Receive Items', `<form id="rcv-form">
-        ${order.items.map(i=>{const rem=i.quantity-i.received_qty;return rem>0?`<div class="form-group"><label>${i.product_name} (Remaining: ${rem})</label><input type="number" class="rcv-qty" data-pid="${i.product_id}" min="0" value="${rem}"></div>`:''}).join('')}
+        ${order.items.map(i=>{const rem=i.quantity-i.received_qty;return rem>0?`<div class="form-group"><label>${i.product_name} (Remaining: ${rem})</label><input type="number" class="rcv-qty" data-pid="${i.product_id}" max="${rem}" min="0" value="${rem}"></div>`:''}).join('')}
         <button type="submit" class="btn btn-primary btn-block">Process Receipt</button></form>`);
     document.getElementById('rcv-form').onsubmit = async(e)=>{
         e.preventDefault();

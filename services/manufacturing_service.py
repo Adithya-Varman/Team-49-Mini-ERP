@@ -2,7 +2,7 @@ from repositories import (
     manufacturing_repository, product_repository, bom_repository,
     audit_log_repository, notification_repository
 )
-from services import inventory_service
+from services import inventory_service, procurement_service
 
 
 def confirm_order(order_id, user_id="", user_name=""):
@@ -19,6 +19,17 @@ def confirm_order(order_id, user_id="", user_name=""):
         return False, "No BoM found for this product", None
 
     manufacturing_repository.update(order_id, {"status": "CONFIRMED"})
+
+    # Auto-procure components if there are shortages
+    qty = order["quantity"]
+    for bom_item in bom["items"]:
+        component = product_repository.find_by_id(bom_item["component_id"])
+        if component:
+            needed = bom_item["quantity"] * qty
+            free = inventory_service.get_free_qty(component)
+            if free < needed:
+                sub_shortage = needed - free
+                procurement_service.trigger_auto_procurement(component, sub_shortage, user_id, user_name)
 
     audit_log_repository.create({
         "user_id": user_id,

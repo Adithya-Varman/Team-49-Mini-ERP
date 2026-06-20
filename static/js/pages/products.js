@@ -1,28 +1,40 @@
 // Products Page
 async function renderProducts() {
     const content = document.getElementById('page-content');
-    document.getElementById('header-actions').innerHTML = '<button class="btn btn-primary" onclick="showCreateProductModal()">+ New Product</button>';
+    const user = getUser();
+    document.getElementById('header-actions').innerHTML = user?.role === 'ADMIN' ? '<button class="btn btn-primary" onclick="showCreateProductModal()">+ New Product</button>' : '';
     try {
         const products = await api.get('/products');
         content.innerHTML = `
         <div class="search-bar"><input id="prod-search" placeholder="Search by name or SKU..." oninput="filterProducts()"><select id="prod-type-filter" onchange="filterProducts()"><option value="">All Types</option><option value="RAW">RAW</option><option value="SEMI_FINISHED">SEMI FINISHED</option><option value="FINISHED">FINISHED</option></select></div>
         <div class="card"><div class="table-wrapper"><table>
-            <thead><tr><th>SKU</th><th>Name</th><th>Type</th><th>Unit</th><th>On Hand</th><th>Reserved</th><th>Free</th><th>Strategy</th><th>Actions</th></tr></thead>
-            <tbody id="products-tbody">${productsTableRows(products)}</tbody></table></div></div>`;
+            <thead><tr><th>SKU</th><th>Name</th><th>Type</th><th>Unit</th><th>On Hand</th><th>Reserved</th><th>Free</th><th>Strategy</th><th>Status</th><th>Actions</th></tr></thead>
+            <tbody id="products-tbody">${productsTableRows(products, user)}</tbody></table></div></div>`;
         window._allProducts = products;
     } catch(e) { content.innerHTML = `<p class="text-danger">${e.message}</p>`; }
 }
 
-function productsTableRows(products) {
-    return products.map(p => `<tr>
-        <td>${p.sku}</td><td>${p.name}</td><td>${statusBadge(p.type)}</td><td>${p.unit}</td>
+function productStockBadge(p) {
+    if (p.on_hand_qty <= 0) return '<span class="badge badge-cancelled">Out of Stock</span>';
+    if (p.on_hand_qty < p.min_stock) return '<span class="badge badge-in-progress">Low Stock</span>';
+    return '<span class="badge badge-completed">In Stock</span>';
+}
+
+function productsTableRows(products, user) {
+    const isAdmin = user?.role === 'ADMIN';
+    return products.map(p => {
+        const cls = p.on_hand_qty <= 0 ? 'inv-row-out' : (p.on_hand_qty < p.min_stock ? 'inv-row-low' : '');
+        return `<tr class="${cls}">
+        <td class="text-muted">${p.sku}</td><td><strong>${p.name}</strong></td><td>${statusBadge(p.type)}</td><td>${p.unit}</td>
         <td>${p.on_hand_qty}</td><td>${p.reserved_qty}</td><td><strong>${p.free_to_use_qty}</strong></td>
-        <td>${p.procurement_strategy}</td>
+        <td>${statusBadge(p.procurement_strategy)}</td>
+        <td>${productStockBadge(p)}</td>
         <td><div class="btn-group">
             <button class="btn btn-sm btn-info" onclick="showProductDetail('${p.id}')">View</button>
-            <button class="btn btn-sm btn-warning" onclick="showEditProductModal('${p.id}')">Edit</button>
-            <button class="btn btn-sm btn-danger" onclick="deleteProduct('${p.id}')">Del</button>
-        </div></td></tr>`).join('');
+            ${isAdmin ? `<button class="btn btn-sm btn-warning" onclick="showEditProductModal('${p.id}')">Edit</button>
+            <button class="btn btn-sm btn-danger" onclick="deleteProduct('${p.id}')">Del</button>` : ''}
+        </div></td></tr>`;
+    }).join('');
 }
 
 function filterProducts() {
@@ -31,7 +43,7 @@ function filterProducts() {
     let filtered = window._allProducts || [];
     if (search) filtered = filtered.filter(p => p.name.toLowerCase().includes(search) || p.sku.toLowerCase().includes(search));
     if (type) filtered = filtered.filter(p => p.type === type);
-    document.getElementById('products-tbody').innerHTML = productsTableRows(filtered);
+    document.getElementById('products-tbody').innerHTML = productsTableRows(filtered, getUser());
 }
 
 async function showProductDetail(id) {

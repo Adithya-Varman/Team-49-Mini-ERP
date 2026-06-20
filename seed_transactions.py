@@ -26,10 +26,10 @@ def seed_random_transactions():
     # 1. Add ~20 Sales Orders
     for _ in range(20):
         cust = random.choice(customers)
-        num_items = random.randint(1, 3)
+        num_items = min(random.randint(1, 3), len(finished_goods))
+        selected_prods = random.sample(finished_goods, num_items)
         items = []
-        for _ in range(num_items):
-            prod = random.choice(finished_goods)
+        for prod in selected_prods:
             qty = random.randint(1, 10)
             items.append({
                 "product_id": prod["id"],
@@ -48,10 +48,10 @@ def seed_random_transactions():
     # 2. Add ~15 Purchase Orders
     for _ in range(15):
         supp = random.choice(suppliers)
-        num_items = random.randint(1, 4)
+        num_items = min(random.randint(1, 4), len(raw_materials))
+        selected_prods = random.sample(raw_materials, num_items)
         items = []
-        for _ in range(num_items):
-            prod = random.choice(raw_materials)
+        for prod in selected_prods:
             qty = random.randint(50, 500)
             items.append({
                 "product_id": prod["id"],

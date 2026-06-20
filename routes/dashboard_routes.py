@@ -50,6 +50,7 @@ def get_dashboard(user: dict = Depends(get_current_active_user)):
             "in_progress": len([o for o in mo if o["status"] == "IN_PROGRESS"]),
             "completed": len([o for o in mo if o["status"] == "COMPLETED"]),
             "production_alerts": notification_repository.find_all({"target_role": "MANUFACTURING"})[:5],
+            "low_stock_alerts": check_all_low_stock(),
             "recent_orders": mo[:10],
         }
     return {}

@@ -33,8 +33,8 @@ def consume_stock(product_id, qty, reason, reference, user_id="", user_name=""):
     if not product:
         return False, "Product not found"
     product_repository.update(product_id, {
-        "on_hand_qty": product["on_hand_qty"] - qty,
-        "reserved_qty": max(0, product["reserved_qty"] - qty),
+        "on_hand_qty": max(0, product.get("on_hand_qty", 0) - qty),
+        "reserved_qty": max(0, product.get("reserved_qty", 0) - qty),
     })
     # Create stock ledger entry
     stock_ledger_repository.create({
