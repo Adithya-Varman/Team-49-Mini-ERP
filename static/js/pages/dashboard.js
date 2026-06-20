@@ -103,27 +103,183 @@ async function renderDashboard() {
                     </div>
                 </div>`;
         } else if (user.role === 'SALES') {
+            const [salesOrders, customers, products] = await Promise.all([
+                api.get('/sales-orders').catch(() => []),
+                api.get('/customers').catch(() => []),
+                api.get('/products').catch(() => []),
+            ]);
+
+            const recentOrders = [...salesOrders].sort((a, b) => new Date(b.created_at) - new Date(a.created_at)).slice(0, 8);
+            const ordersHtml = recentOrders.length ? `<div class="table-wrapper"><table>
+                <thead><tr><th>Order</th><th>Customer</th><th>Items</th><th>Total</th><th>Status</th></tr></thead>
+                <tbody>${recentOrders.map(o => {
+                    const t = o.items.reduce((s, i) => s + i.quantity * i.price, 0);
+                    const itemSummary = o.items.length === 1 ? `${o.items[0].quantity}× ${o.items[0].product_name}` : `${o.items.length} line items`;
+                    return `<tr><td><strong>${o.id}</strong></td><td>${o.customer_name}</td><td class="text-muted">${itemSummary}</td><td>$${t.toFixed(2)}</td><td>${statusBadge(o.status)}</td></tr>`;
+                }).join('')}</tbody></table></div>` : '<div class="dash-empty">No recent orders</div>';
+
+            const customersHtml = customers.length ? `<div class="dash-list">${customers.slice(0, 8).map(c => `
+                <div class="dash-list-item">
+                    <span class="di-dot" style="background:#a17ba0"></span>
+                    <div class="di-main">
+                        <div class="di-title">${c.name}</div>
+                        <div class="di-msg">${c.email || c.phone || ''}</div>
+                        <div class="di-meta"><span class="text-muted">${c.address || ''}</span></div>
+                    </div>
+                </div>`).join('')}</div>` : '<div class="dash-empty">No customers yet</div>';
+
+            const sellable = products.filter(p => p.type === 'FINISHED' || p.type === 'SEMI_FINISHED');
+            const catalogHtml = sellable.length ? `<div class="table-wrapper"><table>
+                <thead><tr><th>Product</th><th>SKU</th><th>Price</th><th>Available</th><th>Stock</th></tr></thead>
+                <tbody>${sellable.map(p => {
+                    const free = (p.on_hand_qty || 0) - (p.reserved_qty || 0);
+                    const stockBadge = free <= 0 ? '<span class="badge badge-cancelled">Out of Stock</span>'
+                        : free < (p.min_stock || 0) ? '<span class="badge badge-in-progress">Low Stock</span>'
+                        : '<span class="badge badge-completed">In Stock</span>';
+                    return `<tr><td><strong>${p.name}</strong></td><td class="text-muted">${p.sku}</td><td>$${(p.sales_price || 0).toFixed(2)}</td><td>${free} ${p.unit}</td><td>${stockBadge}</td></tr>`;
+                }).join('')}</tbody></table></div>` : '<div class="dash-empty">No sellable products</div>';
+
             content.innerHTML = `
                 <div class="stats-grid">
                     <div class="stat-card"><div class="stat-value">${data.total_orders}</div><div class="stat-label">Total Orders</div></div>
                     <div class="stat-card"><div class="stat-value">${data.confirmed_orders}</div><div class="stat-label">Confirmed</div></div>
                     <div class="stat-card"><div class="stat-value">${data.partial_deliveries}</div><div class="stat-label">Partial Delivery</div></div>
                     <div class="stat-card"><div class="stat-value">${data.completed_deliveries}</div><div class="stat-label">Delivered</div></div>
+                </div>
+
+                <div class="dash-row split">
+                    <div class="card">
+                        <div class="card-header"><span class="card-title">${DASH_ICONS.sales} Recent Sales Orders</span><span class="badge badge-draft">${recentOrders.length}</span></div>
+                        ${ordersHtml}
+                    </div>
+                    <div class="card">
+                        <div class="card-header"><span class="card-title">${DASH_ICONS.customers} Customers</span><span class="badge badge-draft">${customers.length}</span></div>
+                        ${customersHtml}
+                    </div>
+                </div>
+
+                <div class="dash-row">
+                    <div class="card">
+                        <div class="card-header"><span class="card-title">${DASH_ICONS.products} Sellable Catalog</span><span class="badge badge-draft">${sellable.length}</span></div>
+                        ${catalogHtml}
+                    </div>
                 </div>`;
         } else if (user.role === 'PURCHASE') {
+            const [purchaseOrders, suppliers, products] = await Promise.all([
+                api.get('/purchase-orders').catch(() => []),
+                api.get('/suppliers').catch(() => []),
+                api.get('/products').catch(() => []),
+            ]);
+
+            const recentPOs = [...purchaseOrders].sort((a, b) => new Date(b.created_at) - new Date(a.created_at)).slice(0, 8);
+            const posHtml = recentPOs.length ? `<div class="table-wrapper"><table>
+                <thead><tr><th>PO</th><th>Supplier</th><th>Items</th><th>Total</th><th>Status</th></tr></thead>
+                <tbody>${recentPOs.map(o => {
+                    const t = o.items.reduce((s, i) => s + i.quantity * i.price, 0);
+                    const itemSummary = o.items.length === 1 ? `${o.items[0].quantity}× ${o.items[0].product_name}` : `${o.items.length} line items`;
+                    return `<tr><td><strong>${o.id}</strong></td><td>${o.supplier_name}</td><td class="text-muted">${itemSummary}</td><td>$${t.toFixed(2)}</td><td>${statusBadge(o.status)}</td></tr>`;
+                }).join('')}</tbody></table></div>` : '<div class="dash-empty">No recent purchase orders</div>';
+
+            const suppliersHtml = suppliers.length ? `<div class="dash-list">${suppliers.map(s => `
+                <div class="dash-list-item">
+                    <span class="di-dot" style="background:#8c8f99"></span>
+                    <div class="di-main">
+                        <div class="di-title">${s.name}</div>
+                        <div class="di-msg">${s.email || s.phone || ''}</div>
+                        <div class="di-meta"><span class="text-muted">${s.address || ''}</span></div>
+                    </div>
+                </div>`).join('')}</div>` : '<div class="dash-empty">No suppliers</div>';
+
+            const low = data.low_stock_alerts || [];
+            const lowHtml = low.length ? `<div class="table-wrapper"><table>
+                <thead><tr><th>Product</th><th>On Hand</th><th>Min</th><th>Type</th></tr></thead>
+                <tbody>${low.map(a => `<tr><td>${a.product_name}</td><td class="text-danger"><strong>${a.on_hand}</strong></td><td>${a.min_stock}</td><td>${statusBadge(a.type)}</td></tr>`).join('')}</tbody></table></div>`
+                : '<div class="dash-empty">All stock levels are healthy</div>';
+
             content.innerHTML = `
                 <div class="stats-grid">
                     <div class="stat-card"><div class="stat-value">${data.total_orders}</div><div class="stat-label">Total POs</div></div>
                     <div class="stat-card"><div class="stat-value">${data.pending_receipts}</div><div class="stat-label">Pending Receipt</div></div>
                     <div class="stat-card"><div class="stat-value">${data.completed_receipts}</div><div class="stat-label">Received</div></div>
                     <div class="stat-card"><div class="stat-value text-danger">${data.low_stock_alerts.length}</div><div class="stat-label">Low Stock</div></div>
+                </div>
+
+                <div class="dash-row split">
+                    <div class="card">
+                        <div class="card-header"><span class="card-title">${DASH_ICONS.purchase} Recent Purchase Orders</span><span class="badge badge-draft">${recentPOs.length}</span></div>
+                        ${posHtml}
+                    </div>
+                    <div class="card">
+                        <div class="card-header"><span class="card-title">${DASH_ICONS.suppliers} Suppliers</span><span class="badge badge-draft">${suppliers.length}</span></div>
+                        ${suppliersHtml}
+                    </div>
+                </div>
+
+                <div class="dash-row">
+                    <div class="card">
+                        <div class="card-header"><span class="card-title">${DASH_ICONS.alert} Low Stock Alerts</span><span class="badge badge-${low.length ? 'cancelled' : 'completed'}">${low.length}</span></div>
+                        ${lowHtml}
+                    </div>
                 </div>`;
         } else if (user.role === 'MANUFACTURING') {
+            const [mos, boms, products] = await Promise.all([
+                api.get('/manufacturing-orders').catch(() => []),
+                api.get('/bom').catch(() => []),
+                api.get('/products').catch(() => []),
+            ]);
+
+            const recentMOs = [...mos].sort((a, b) => new Date(b.created_at) - new Date(a.created_at)).slice(0, 8);
+            const mosHtml = recentMOs.length ? `<div class="table-wrapper"><table>
+                <thead><tr><th>MO</th><th>Product</th><th>Quantity</th><th>Completed</th><th>Status</th></tr></thead>
+                <tbody>${recentMOs.map(o => `<tr>
+                    <td><strong>${o.id}</strong></td>
+                    <td>${o.product_name}</td>
+                    <td>${o.quantity}</td>
+                    <td>${o.completed_qty}/${o.quantity}</td>
+                    <td>${statusBadge(o.status)}</td>
+                </tr>`).join('')}</tbody></table></div>` : '<div class="dash-empty">No manufacturing orders</div>';
+
+            const bomsHtml = boms.length ? `<div class="dash-list">${boms.map(b => {
+                const prod = products.find(p => p.id === b.product_id);
+                return `<div class="dash-list-item">
+                    <span class="di-dot" style="background:#a17ba0"></span>
+                    <div class="di-main">
+                        <div class="di-title">${b.id} — ${prod ? prod.name : 'Unknown product'}</div>
+                        <div class="di-msg">${(b.components || []).length} components</div>
+                    </div>
+                </div>`;
+            }).join('')}</div>` : '<div class="dash-empty">No bills of materials</div>';
+
+            const low = data.low_stock_alerts || [];
+            const lowHtml = low.length ? `<div class="table-wrapper"><table>
+                <thead><tr><th>Product</th><th>On Hand</th><th>Min</th><th>Type</th></tr></thead>
+                <tbody>${low.map(a => `<tr><td>${a.product_name}</td><td class="text-danger"><strong>${a.on_hand}</strong></td><td>${a.min_stock}</td><td>${statusBadge(a.type)}</td></tr>`).join('')}</tbody></table></div>`
+                : '<div class="dash-empty">All stock levels are healthy</div>';
+
             content.innerHTML = `
                 <div class="stats-grid">
                     <div class="stat-card"><div class="stat-value">${data.total_orders}</div><div class="stat-label">Total MOs</div></div>
                     <div class="stat-card"><div class="stat-value">${data.in_progress}</div><div class="stat-label">In Progress</div></div>
                     <div class="stat-card"><div class="stat-value">${data.completed}</div><div class="stat-label">Completed</div></div>
+                    <div class="stat-card"><div class="stat-value text-danger">${(data.low_stock_alerts || []).length}</div><div class="stat-label">Low Stock</div></div>
+                </div>
+
+                <div class="dash-row split">
+                    <div class="card">
+                        <div class="card-header"><span class="card-title">${DASH_ICONS.manufacturing} Recent Manufacturing Orders</span><span class="badge badge-draft">${recentMOs.length}</span></div>
+                        ${mosHtml}
+                    </div>
+                    <div class="card">
+                        <div class="card-header"><span class="card-title">${DASH_ICONS.products} Bills of Materials</span><span class="badge badge-draft">${boms.length}</span></div>
+                        ${bomsHtml}
+                    </div>
+                </div>
+
+                <div class="dash-row">
+                    <div class="card">
+                        <div class="card-header"><span class="card-title">${DASH_ICONS.alert} Low Stock Alerts</span><span class="badge badge-${low.length ? 'cancelled' : 'completed'}">${low.length}</span></div>
+                        ${lowHtml}
+                    </div>
                 </div>`;
         }
     } catch(e) { content.innerHTML = `<p class="text-danger">Error loading dashboard: ${e.message}</p>`; }
