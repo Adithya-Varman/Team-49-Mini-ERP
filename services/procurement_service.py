@@ -44,6 +44,14 @@ def trigger_auto_procurement(product, shortage_qty, user_id="", user_name=""):
                 "target_role": role,
                 "type": "PRODUCTION_REQUIRED",
             })
+            
+        # Recursively auto-confirm to trigger BoM checks instantly
+        from services import manufacturing_service
+        manufacturing_service.confirm_order(mo["id"], user_id, user_name)
+        
+        # Refetch the MO to get updated status (e.g. DELAYED or CONFIRMED)
+        mo = manufacturing_repository.find_by_id(mo["id"])
+        
         return {"type": "MANUFACTURING_ORDER", "order": mo}
 
     return None

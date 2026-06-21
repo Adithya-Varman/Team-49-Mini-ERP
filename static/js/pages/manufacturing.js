@@ -14,7 +14,11 @@ function moProgress(o) {
 
 async function renderManufacturing() {
     const content = document.getElementById('page-content');
-    document.getElementById('header-actions').innerHTML = '<button class="btn btn-primary" onclick="showCreateMOModal()">+ New MO</button>';
+    window._showMOHistory = window._showMOHistory || false;
+    document.getElementById('header-actions').innerHTML = `
+        <button class="btn ${window._showMOHistory ? 'btn-warning' : 'btn-secondary'}" onclick="toggleMOHistory()" id="mo-history-btn">${window._showMOHistory ? 'Back to Active' : '📜 History'}</button>
+        <button class="btn btn-primary" onclick="showCreateMOModal()">+ New MO</button>
+    `;
     try {
         const [orders, boms] = await Promise.all([api.get('/manufacturing-orders'), api.get('/bom')]);
         window._allMO = orders;
@@ -23,14 +27,15 @@ async function renderManufacturing() {
         content.innerHTML = `
         <div class="search-bar">
             <input id="mo-search" placeholder="Search by MO ID or product..." oninput="filterMO()">
-            <select id="mo-status" onchange="filterMO()"><option value="">All Status</option><option value="DRAFT">Draft</option><option value="CONFIRMED">Confirmed</option><option value="IN_PROGRESS">In Progress</option><option value="COMPLETED">Completed</option><option value="CANCELLED">Cancelled</option></select>
+            <select id="mo-status" onchange="filterMO()"><option value="">All Status</option><option value="DRAFT">Draft</option><option value="DELAYED">Delayed</option><option value="CONFIRMED">Confirmed</option><option value="IN_PROGRESS">In Progress</option><option value="COMPLETED">Completed</option><option value="CANCELLED">Cancelled</option></select>
         </div>
         <div class="card">
-            <div class="card-header"><span class="card-title">${moIcon} Manufacturing Orders</span><span class="badge badge-draft" id="mo-count">${orders.length}</span></div>
+            <div class="card-header"><span class="card-title">${moIcon} Manufacturing Orders ${window._showMOHistory ? '(History)' : '(Active)'}</span><span class="badge badge-draft" id="mo-count">${orders.length}</span></div>
             <div class="table-wrapper"><table>
                 <thead><tr><th>MO</th><th>Product</th><th>Quantity</th><th>BoM Reference</th><th>Source</th><th>Production Status</th><th>Actions</th></tr></thead>
-                <tbody id="mo-tbody">${moRows(orders)}</tbody></table></div>
+                <tbody id="mo-tbody">${moRows([])}</tbody></table></div>
         </div>`;
+        filterMO();
     } catch(e) { content.innerHTML = `<p class="text-danger">${e.message}</p>`; }
 }
 function moRows(orders) {
@@ -45,6 +50,7 @@ function moRows(orders) {
         <td><div class="btn-group">
             <button class="btn btn-sm btn-info" onclick="viewMO('${o.id}')">View</button>
             ${o.status==='DRAFT'?`<button class="btn btn-sm btn-success" onclick="confirmMO('${o.id}')">Confirm</button>`:''}
+            ${o.status==='DELAYED'?`<button class="btn btn-sm btn-warning" onclick="confirmMO('${o.id}')">Re-Check Stock</button>`:''}
             ${o.status==='CONFIRMED'?`<button class="btn btn-sm btn-warning" onclick="startMO('${o.id}')">Start</button>`:''}
             ${o.status==='IN_PROGRESS'?`<button class="btn btn-sm btn-primary" onclick="showCompleteMOModal('${o.id}',${o.quantity-o.completed_qty})">Complete</button>`:''}
             ${o.status!=='COMPLETED'&&o.status!=='CANCELLED'?`<button class="btn btn-sm btn-danger" onclick="cancelMO('${o.id}')">Cancel</button>`:''}
@@ -65,9 +71,26 @@ function viewMO(id) {
     </div><div class="progress-mini mt-4"><div class="progress-mini-fill" style="width:${pct}%"></div></div>
     <p class="cell-sub mt-2">${pct}% complete</p>`);
 }
+function toggleMOHistory() {
+    window._showMOHistory = !window._showMOHistory;
+    const btn = document.getElementById('mo-history-btn');
+    if (btn) {
+        btn.innerHTML = window._showMOHistory ? 'Back to Active' : '📜 History';
+        btn.className = window._showMOHistory ? 'btn btn-warning' : 'btn btn-secondary';
+    }
+    filterMO();
+}
 function filterMO() {
     const q=document.getElementById('mo-search').value.toLowerCase(),s=document.getElementById('mo-status').value;
     let f=window._allMO||[];
+    
+    const finishedStatuses = ['COMPLETED', 'CANCELLED'];
+    if (window._showMOHistory) {
+        f = f.filter(o => finishedStatuses.includes(o.status));
+    } else {
+        f = f.filter(o => !finishedStatuses.includes(o.status));
+    }
+    
     if(q)f=f.filter(o=>o.id.toLowerCase().includes(q)||o.product_name.toLowerCase().includes(q));
     if(s)f=f.filter(o=>o.status===s);
     document.getElementById('mo-tbody').innerHTML=moRows(f);
@@ -84,7 +107,7 @@ async function showCreateMOModal() {
         try{const r=await api.post('/manufacturing-orders',{product_id:document.getElementById('cmo-prod').value,quantity:+document.getElementById('cmo-qty').value});closeModal();showToast('MO created: '+r.id,'success');renderManufacturing();}catch(err){showToast(err.message,'error');}
     };
 }
-async function confirmMO(id){try{const r=await api.post(`/manufacturing-orders/${id}/confirm`);showToast(r.message,'success');renderManufacturing();}catch(e){showToast(e.message,'error');}}
+async function confirmMO(id){try{const r=await api.post(`/manufacturing-orders/${id}/confirm`);showToast(r.message,r.message.includes('delayed')?'warning':'success');if(r.auto_procurements)showToast('Auto PO/MO placed!','info');renderManufacturing();}catch(e){showToast(e.message,'error');}}
 async function startMO(id){
     try{const r=await api.post(`/manufacturing-orders/${id}/start`);showToast(r.message,'success');renderManufacturing();}
     catch(e){showToast(e.message,'error');if(e.data&&e.data.shortages){let msg='Component shortages:\n';e.data.shortages.forEach(s=>{msg+=`${s.component_name}: need ${s.needed}, have ${s.available}\n`;});alert(msg);}}

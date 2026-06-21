@@ -3,7 +3,11 @@ const soIcon = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strok
 
 async function renderSales() {
     const content = document.getElementById('page-content');
-    document.getElementById('header-actions').innerHTML = '<button class="btn btn-primary" onclick="showCreateSalesModal()">+ New Sales Order</button>';
+    window._showSOHistory = window._showSOHistory || false;
+    document.getElementById('header-actions').innerHTML = `
+        <button class="btn ${window._showSOHistory ? 'btn-warning' : 'btn-secondary'}" onclick="toggleSOHistory()" id="so-history-btn">${window._showSOHistory ? 'Back to Active' : '📜 History'}</button>
+        <button class="btn btn-primary" onclick="showCreateSalesModal()">+ New Sales Order</button>
+    `;
     try {
         const orders = await api.get('/sales-orders');
         window._allSO = orders;
@@ -13,11 +17,12 @@ async function renderSales() {
             <select id="so-status" onchange="filterSales()"><option value="">All Status</option><option value="DRAFT">Draft</option><option value="DELAYED">Delayed</option><option value="CONFIRMED">Confirmed</option><option value="PARTIALLY_DELIVERED">Partially Delivered</option><option value="FULLY_DELIVERED">Delivered</option><option value="CANCELLED">Cancelled</option></select>
         </div>
         <div class="card">
-            <div class="card-header"><span class="card-title">${soIcon} Sales Orders</span><span class="badge badge-draft" id="so-count">${orders.length}</span></div>
+            <div class="card-header"><span class="card-title">${soIcon} Sales Orders ${window._showSOHistory ? '(History)' : '(Active)'}</span><span class="badge badge-draft" id="so-count">${orders.length}</span></div>
             <div class="table-wrapper"><table>
                 <thead><tr><th>Order</th><th>Customer</th><th>Items</th><th>Total</th><th>Status</th><th>Actions</th></tr></thead>
-                <tbody id="so-tbody">${salesRows(orders)}</tbody></table></div>
+                <tbody id="so-tbody">${salesRows([])}</tbody></table></div>
         </div>`;
+        filterSales();
     } catch(e) { content.innerHTML = `<p class="text-danger">${e.message}</p>`; }
 }
 function salesRows(orders) {
@@ -38,10 +43,27 @@ function salesRows(orders) {
         </div></td></tr>`;
     }).join('');
 }
+function toggleSOHistory() {
+    window._showSOHistory = !window._showSOHistory;
+    const btn = document.getElementById('so-history-btn');
+    if (btn) {
+        btn.innerHTML = window._showSOHistory ? 'Back to Active' : '📜 History';
+        btn.className = window._showSOHistory ? 'btn btn-warning' : 'btn btn-secondary';
+    }
+    filterSales();
+}
 function filterSales() {
     const q = document.getElementById('so-search').value.toLowerCase();
     const s = document.getElementById('so-status').value;
     let f = window._allSO||[];
+    
+    const finishedStatuses = ['FULLY_DELIVERED', 'CANCELLED'];
+    if (window._showSOHistory) {
+        f = f.filter(o => finishedStatuses.includes(o.status));
+    } else {
+        f = f.filter(o => !finishedStatuses.includes(o.status));
+    }
+    
     if(q) f=f.filter(o=>o.id.toLowerCase().includes(q)||o.customer_name.toLowerCase().includes(q));
     if(s) f=f.filter(o=>o.status===s);
     document.getElementById('so-tbody').innerHTML = salesRows(f);
@@ -78,7 +100,7 @@ function collectSOItems() {
     return Array.from(document.getElementById('cso-items').querySelectorAll('.order-item-row')).map(r=>({product_id:r.querySelector('.so-prod').value,quantity:+r.querySelector('.so-qty').value,price:+r.querySelector('.so-price').value})).filter(i=>i.quantity>0);
 }
 async function confirmSO(id) {
-    try{const r=await api.post(`/sales-orders/${id}/confirm`);showToast(r.message,r.message.includes('delayed')?'warning':'success');if(r.auto_procurements)showToast('Auto procurement triggered!','info');renderSales();}
+    try{const r=await api.post(`/sales-orders/${id}/confirm`);showToast(r.message,r.message.includes('delayed')?'warning':'success');if(r.auto_procurements)showToast('Auto PO/MO placed!','info');renderSales();}
     catch(err){showToast(err.message,'error');if(err.data&&err.data.shortages){let msg='Shortages:\n';err.data.shortages.forEach(s=>{msg+=`${s.product_name}: need ${s.needed}, have ${s.available}\n`;});alert(msg);}}
 }
 async function showDeliverModal(id) {

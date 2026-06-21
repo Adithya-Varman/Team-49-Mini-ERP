@@ -9,6 +9,7 @@ const INV_ICONS = {
     raw: invSvg('<path d="M21 8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16Z"/><path d="m3.3 7 8.7 5 8.7-5"/><path d="M12 22V12"/>'),
     semi: invSvg('<path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"/>'),
     finished: invSvg('<path d="M21.801 10A10 10 0 1 1 17 3.335"/><path d="m9 11 3 3L22 4"/>'),
+    delayed: invSvg('<circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/>'),
 };
 
 function invStatusBadge(i) {
@@ -17,16 +18,15 @@ function invStatusBadge(i) {
     return '<span class="badge badge-completed">In Stock</span>';
 }
 
-function invSummary(all) {
+function invSummary(all, delayedCount = 0) {
     const totalSku = all.length;
     const lowCount = all.filter((i) => i.on_hand_qty < i.min_stock).length;
-    const onHand = all.reduce((s, i) => s + i.on_hand_qty, 0);
     const reserved = all.reduce((s, i) => s + i.reserved_qty, 0);
     return `<div class="stats-grid">
         <div class="stat-card kpi-blue"><span class="stat-icon">${INV_ICONS.skus}</span><div class="stat-value">${totalSku}</div><div class="stat-label">Total SKUs</div></div>
         <div class="stat-card kpi-rose"><span class="stat-icon">${INV_ICONS.alert}</span><div class="stat-value">${lowCount}</div><div class="stat-label">Low Stock Items</div></div>
-        <div class="stat-card kpi-green"><span class="stat-icon">${INV_ICONS.onhand}</span><div class="stat-value">${onHand}</div><div class="stat-label">Units On Hand</div></div>
-        <div class="stat-card kpi-amber"><span class="stat-icon">${INV_ICONS.reserved}</span><div class="stat-value">${reserved}</div><div class="stat-label">Units Reserved</div></div>
+        <div class="stat-card kpi-amber"><span class="stat-icon">${INV_ICONS.delayed}</span><div class="stat-value">${delayedCount}</div><div class="stat-label">Delayed Orders</div></div>
+        <div class="stat-card kpi-green"><span class="stat-icon">${INV_ICONS.reserved}</span><div class="stat-value">${reserved}</div><div class="stat-label">Units Reserved</div></div>
     </div>`;
 }
 
@@ -84,9 +84,16 @@ function invSections(all, q, t) {
 async function renderInventory() {
     const content = document.getElementById('page-content');
     try {
-        const inv = await api.get('/inventory');
+        const [inv, so, mo] = await Promise.all([
+            api.get('/inventory'),
+            api.get('/sales-orders').catch(() => []),
+            api.get('/manufacturing-orders').catch(() => [])
+        ]);
         window._allInv = inv;
-        content.innerHTML = `${invSummary(inv)}${invSearchBar('', '')}<div id="inv-sections">${invSections(inv, '', '')}</div>`;
+        
+        const delayedCount = so.filter(o => o.status === 'DELAYED').length + mo.filter(o => o.status === 'DELAYED').length;
+        
+        content.innerHTML = `${invSummary(inv, delayedCount)}${invSearchBar('', '')}<div id="inv-sections">${invSections(inv, '', '')}</div>`;
     } catch(e) { content.innerHTML = `<p class="text-danger">${e.message}</p>`; }
 }
 

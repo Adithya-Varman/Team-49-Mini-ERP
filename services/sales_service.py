@@ -72,7 +72,7 @@ def confirm_order(order_id, user_id="", user_name=""):
                 result_data["auto_procurements"] = auto_procurements
             return True, "Order delayed pending stock", result_data
         else:
-            return False, "Still waiting for stock to arrive", None
+            return False, "Still waiting for stock (Auto-procured PO/MO already placed)", None
 
     # All good
     sales_repository.update(order_id, {"status": "CONFIRMED"})

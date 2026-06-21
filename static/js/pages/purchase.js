@@ -3,7 +3,11 @@ const poIcon = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strok
 
 async function renderPurchase() {
     const content = document.getElementById('page-content');
-    document.getElementById('header-actions').innerHTML = '<button class="btn btn-primary" onclick="showCreatePurchaseModal()">+ New PO</button>';
+    window._showPOHistory = window._showPOHistory || false;
+    document.getElementById('header-actions').innerHTML = `
+        <button class="btn ${window._showPOHistory ? 'btn-warning' : 'btn-secondary'}" onclick="togglePOHistory()" id="po-history-btn">${window._showPOHistory ? 'Back to Active' : '📜 History'}</button>
+        <button class="btn btn-primary" onclick="showCreatePurchaseModal()">+ New PO</button>
+    `;
     try {
         const orders = await api.get('/purchase-orders');
         window._allPO = orders;
@@ -13,11 +17,12 @@ async function renderPurchase() {
             <select id="po-status" onchange="filterPO()"><option value="">All Status</option><option value="DRAFT">Draft</option><option value="CONFIRMED">Confirmed</option><option value="PARTIALLY_RECEIVED">Partially Received</option><option value="FULLY_RECEIVED">Received</option><option value="CANCELLED">Cancelled</option></select>
         </div>
         <div class="card">
-            <div class="card-header"><span class="card-title">${poIcon} Purchase Orders</span><span class="badge badge-draft" id="po-count">${orders.length}</span></div>
+            <div class="card-header"><span class="card-title">${poIcon} Purchase Orders ${window._showPOHistory ? '(History)' : '(Active)'}</span><span class="badge badge-draft" id="po-count">${orders.length}</span></div>
             <div class="table-wrapper"><table>
                 <thead><tr><th>PO</th><th>Supplier</th><th>Items</th><th>Source</th><th>Status</th><th>Actions</th></tr></thead>
-                <tbody id="po-tbody">${poRows(orders)}</tbody></table></div>
+                <tbody id="po-tbody">${poRows([])}</tbody></table></div>
         </div>`;
+        filterPO();
     } catch(e) { content.innerHTML = `<p class="text-danger">${e.message}</p>`; }
 }
 function poRows(orders) {
@@ -45,9 +50,26 @@ async function viewPurchaseOrder(id) {
     </div><div class="table-wrapper mt-4"><table><thead><tr><th>Product</th><th>Ordered</th><th>Received</th></tr></thead>
     <tbody>${o.items.map(i=>`<tr><td>${i.product_name}</td><td>${i.quantity}</td><td>${i.received_qty}/${i.quantity}</td></tr>`).join('')}</tbody></table></div>`);
 }
+function togglePOHistory() {
+    window._showPOHistory = !window._showPOHistory;
+    const btn = document.getElementById('po-history-btn');
+    if (btn) {
+        btn.innerHTML = window._showPOHistory ? 'Back to Active' : '📜 History';
+        btn.className = window._showPOHistory ? 'btn btn-warning' : 'btn btn-secondary';
+    }
+    filterPO();
+}
 function filterPO() {
     const q=document.getElementById('po-search').value.toLowerCase(),s=document.getElementById('po-status').value;
     let f=window._allPO||[];
+    
+    const finishedStatuses = ['FULLY_RECEIVED', 'CANCELLED'];
+    if (window._showPOHistory) {
+        f = f.filter(o => finishedStatuses.includes(o.status));
+    } else {
+        f = f.filter(o => !finishedStatuses.includes(o.status));
+    }
+    
     if(q)f=f.filter(o=>o.id.toLowerCase().includes(q)||o.supplier_name.toLowerCase().includes(q));
     if(s)f=f.filter(o=>o.status===s);
     document.getElementById('po-tbody').innerHTML=poRows(f);

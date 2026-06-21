@@ -10,18 +10,21 @@ def confirm_order(order_id, user_id="", user_name=""):
     order = manufacturing_repository.find_by_id(order_id)
     if not order:
         return False, "Order not found", None
-    if order["status"] != "DRAFT":
-        return False, "Order is not in DRAFT status", None
+    if order["status"] not in ["DRAFT", "DELAYED"]:
+        return False, "Order must be in DRAFT or DELAYED status", None
+
+    was_delayed = order["status"] == "DELAYED"
 
     # Check BoM exists
     bom = bom_repository.find_by_product_id(order["product_id"])
     if not bom:
         return False, "No BoM found for this product", None
 
-    manufacturing_repository.update(order_id, {"status": "CONFIRMED"})
+    qty = order["quantity"]
+    shortages = []
+    auto_procurements_triggered = False
 
     # Auto-procure components if there are shortages
-    qty = order["quantity"]
     for bom_item in bom["items"]:
         component = product_repository.find_by_id(bom_item["component_id"])
         if component:
@@ -29,7 +32,30 @@ def confirm_order(order_id, user_id="", user_name=""):
             free = inventory_service.get_free_qty(component)
             if free < needed:
                 sub_shortage = needed - free
-                procurement_service.trigger_auto_procurement(component, sub_shortage, user_id, user_name)
+                shortages.append(component["name"])
+                
+                if not was_delayed:
+                    result = procurement_service.trigger_auto_procurement(component, sub_shortage, user_id, user_name)
+                    if result:
+                        auto_procurements_triggered = True
+
+    if shortages:
+        if not was_delayed:
+            manufacturing_repository.update(order_id, {"status": "DELAYED"})
+            
+            audit_log_repository.create({
+                "user_id": user_id,
+                "user_name": user_name,
+                "action": "Delayed Manufacturing Order (Shortage)",
+                "entity_type": "ManufacturingOrder",
+                "reference_id": order_id,
+            })
+            
+            return True, "Order delayed pending components", {"auto_procurements": auto_procurements_triggered}
+        else:
+            return False, "Still waiting for components (Auto-procured PO/MO already placed)", None
+
+    manufacturing_repository.update(order_id, {"status": "CONFIRMED"})
 
     audit_log_repository.create({
         "user_id": user_id,
