@@ -1,29 +1,22 @@
-from pydantic import BaseModel
 from typing import Optional
+from bson import ObjectId
 
 
-class UserCreate(BaseModel):
-    name: str
-    email: str
-    password: str
-    role: str  # ADMIN, SALES, PURCHASE, MANUFACTURING
+class User:
+    def __init__(
+        self,
+        id: Optional[ObjectId] = None,
+        username: str = "",
+        password_hash: str = "",
+        role: str = "",
+    ) -> None:
+        self.id = ObjectId(id) if id is not None and not isinstance(id, ObjectId) else id
+        self.username = username
+        self.password_hash = password_hash
+        self.role = role
 
-
-class UserUpdate(BaseModel):
-    name: Optional[str] = None
-    email: Optional[str] = None
-    password: Optional[str] = None
-    role: Optional[str] = None
-
-
-class UserLogin(BaseModel):
-    email: str
-    password: str
-
-
-class UserOut(BaseModel):
-    id: str
-    name: str
-    email: str
-    role: str
-    created_at: str
+    def to_dict(self) -> dict:
+        data = {"username": self.username, "password_hash": self.password_hash, "role": self.role}
+        if self.id:
+            data["_id"] = self.id
+        return data

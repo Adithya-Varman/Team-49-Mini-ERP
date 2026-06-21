@@ -1,17 +1,22 @@
-from pydantic import BaseModel
-from typing import List, Optional
+from typing import Optional, List, Dict
+from bson import ObjectId
 
 
-class BomItem(BaseModel):
-    component_id: str
-    quantity: float
+class BOM:
+    def __init__(
+        self,
+        id: Optional[ObjectId] = None,
+        product_id: Optional[ObjectId] = None,
+        components: Optional[List[Dict]] = None,
+    ) -> None:
+        self.id = ObjectId(id) if id is not None and not isinstance(id, ObjectId) else id
+        self.product_id = (
+            ObjectId(product_id) if product_id is not None and not isinstance(product_id, ObjectId) else product_id
+        )
+        self.components = components or []
 
-
-class BomCreate(BaseModel):
-    product_id: str
-    items: List[BomItem]
-
-
-class BomUpdate(BaseModel):
-    product_id: Optional[str] = None
-    items: Optional[List[BomItem]] = None
+    def to_dict(self) -> dict:
+        data = {"product_id": self.product_id, "components": self.components}
+        if self.id:
+            data["_id"] = self.id
+        return data

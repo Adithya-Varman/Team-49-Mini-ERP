@@ -1,16 +1,29 @@
-from pydantic import BaseModel
 from typing import Optional
+from bson import ObjectId
 
 
-class SupplierCreate(BaseModel):
-    name: str
-    phone: Optional[str] = ""
-    email: Optional[str] = ""
-    address: Optional[str] = ""
+class Supplier:
+    def __init__(
+        self,
+        id: Optional[ObjectId] = None,
+        name: str = "",
+        email: str = "",
+        phone: str = "",
+        address: str = "",
+    ) -> None:
+        self.id = ObjectId(id) if id is not None and not isinstance(id, ObjectId) else id
+        self.name = name
+        self.email = email
+        self.phone = phone
+        self.address = address
 
-
-class SupplierUpdate(BaseModel):
-    name: Optional[str] = None
-    phone: Optional[str] = None
-    email: Optional[str] = None
-    address: Optional[str] = None
+    def to_dict(self) -> dict:
+        data = {
+            "name": self.name,
+            "email": self.email,
+            "phone": self.phone,
+            "address": self.address,
+        }
+        if self.id:
+            data["_id"] = self.id
+        return data
