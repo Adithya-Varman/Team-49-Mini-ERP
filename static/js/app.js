@@ -160,13 +160,64 @@ async function loadNotifCount() {
     try {
         const data = await api.get('/notifications/unread-count');
         notifCount = data.count;
-        const badge = document.getElementById('nav-notif-count');
-        if (badge) {
-            badge.textContent = notifCount;
-            badge.style.display = notifCount > 0 ? 'inline' : 'none';
+        const badge1 = document.getElementById('nav-notif-count');
+        if (badge1) {
+            badge1.textContent = notifCount;
+            badge1.style.display = notifCount > 0 ? 'inline' : 'none';
+        }
+        const badge2 = document.getElementById('nav-notif-badge');
+        if (badge2) {
+            badge2.textContent = notifCount;
+            badge2.style.display = notifCount > 0 ? 'inline' : 'none';
         }
     } catch(e) {}
 }
+
+let ndOpen = false;
+async function toggleNotificationDrawer() {
+    const nd = document.getElementById('notification-drawer');
+    const body = document.getElementById('nd-body');
+    if (ndOpen) {
+        nd.style.display = 'none';
+        ndOpen = false;
+        return;
+    }
+    
+    nd.style.display = 'flex';
+    ndOpen = true;
+    body.innerHTML = '<p style="text-align:center; padding: 20px;">Loading...</p>';
+    
+    try {
+        const notifs = await api.get('/notifications');
+        const recentNotifs = notifs.sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp)).slice(0, 15);
+        
+        if (recentNotifs.length === 0) {
+            body.innerHTML = '<div class="dash-empty" style="padding:20px;text-align:center;">No recent notifications</div>';
+            return;
+        }
+        
+        const notifDot = { LOW_STOCK: '#e11d48', AUTO_PROCUREMENT: '#2563eb' };
+        body.innerHTML = recentNotifs.map(n => `
+            <div class="nd-item">
+                <div class="nd-title">
+                    <span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:${notifDot[n.type] || '#94a3b8'};margin-right:6px;"></span>
+                    ${n.title}
+                </div>
+                <div class="nd-msg">${n.message}</div>
+                <div class="nd-meta">
+                    <span>${n.type.replace('_', ' ')}</span>
+                    <span>${new Date(n.timestamp).toLocaleString(undefined, {month:'short', day:'numeric', hour:'2-digit', minute:'2-digit'})}</span>
+                </div>
+            </div>
+        `).join('');
+    } catch (e) {
+        body.innerHTML = '<p class="text-danger" style="text-align:center; padding: 20px;">Failed to load notifications</p>';
+    }
+}
+
+document.getElementById('nav-notif-btn').addEventListener('click', toggleNotificationDrawer);
+document.getElementById('nd-close').addEventListener('click', toggleNotificationDrawer);
+
 
 function navigate(page) {
     currentPage = page;
@@ -199,15 +250,10 @@ function getPageTitle(page) {
     return titles[page] || page;
 }
 
-// Prefill remembered email
+// Prefill removed
 (function () {
-    const remembered = localStorage.getItem('erp_remember_email');
-    if (remembered) {
-        const emailInput = document.getElementById('login-email');
-        const rememberBox = document.getElementById('login-remember');
-        if (emailInput) emailInput.value = remembered;
-        if (rememberBox) rememberBox.checked = true;
-    }
+    // legacy clear
+    localStorage.removeItem('erp_remember_email');
 })();
 
 // Login handler
@@ -215,11 +261,8 @@ document.getElementById('login-form').addEventListener('submit', async (e) => {
     e.preventDefault();
     const email = document.getElementById('login-email').value;
     const password = document.getElementById('login-password').value;
-    const remember = document.getElementById('login-remember').checked;
     try {
         const data = await api.post('/auth/login', { email, password });
-        if (remember) localStorage.setItem('erp_remember_email', email);
-        else localStorage.removeItem('erp_remember_email');
         localStorage.setItem('erp_token', data.access_token);
         localStorage.setItem('erp_user', JSON.stringify({
             role: data.role,
@@ -230,19 +273,6 @@ document.getElementById('login-form').addEventListener('submit', async (e) => {
     } catch(err) {
         document.getElementById('login-error').textContent = err.message || 'Login failed';
     }
-});
-
-// Forgot password (client-side prompt; no backend change)
-document.getElementById('forgot-password').addEventListener('click', (e) => {
-    e.preventDefault();
-    const errEl = document.getElementById('login-error');
-    const email = document.getElementById('login-email').value.trim();
-    if (!email) {
-        errEl.textContent = 'Enter your email above, then click "Forgot password?"';
-        return;
-    }
-    errEl.textContent = '';
-    showToast(`Password reset link sent to ${email}`, 'success');
 });
 
 document.getElementById('logout-btn').addEventListener('click', () => {

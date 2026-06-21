@@ -38,26 +38,7 @@ async function renderDashboard() {
                 api.get('/customers'), api.get('/suppliers'), api.get('/sales-orders'), api.get('/notifications'),
             ]);
 
-            const recentOrders = [...salesOrders].sort((a, b) => new Date(b.created_at) - new Date(a.created_at)).slice(0, 5);
-            const ordersHtml = recentOrders.length ? `<div class="table-wrapper"><table>
-                <thead><tr><th>Order</th><th>Customer</th><th>Total</th><th>Status</th></tr></thead>
-                <tbody>${recentOrders.map(o => {
-                    const t = o.items.reduce((s, i) => s + i.quantity * i.price, 0);
-                    return `<tr><td><strong>${o.id}</strong></td><td>${o.customer_name}</td><td>$${t.toFixed(2)}</td><td>${statusBadge(o.status)}</td></tr>`;
-                }).join('')}</tbody></table></div>` : '<div class="dash-empty">No recent orders</div>';
-
-            const recentNotifs = [...notifications].sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp)).slice(0, 5);
-            const notifDot = { LOW_STOCK: '#e11d48', AUTO_PROCUREMENT: '#2563eb' };
-            const notifBadge = (t) => t === 'LOW_STOCK' ? 'cancelled' : t === 'AUTO_PROCUREMENT' ? 'confirmed' : 'draft';
-            const notifsHtml = recentNotifs.length ? `<div class="dash-list">${recentNotifs.map(n => `
-                <div class="dash-list-item">
-                    <span class="di-dot" style="background:${notifDot[n.type] || '#94a3b8'}"></span>
-                    <div class="di-main">
-                        <div class="di-title">${n.title}</div>
-                        <div class="di-msg">${n.message}</div>
-                        <div class="di-meta"><span class="badge badge-${notifBadge(n.type)}">${n.type}</span><span>${new Date(n.timestamp).toLocaleString()}</span></div>
-                    </div>
-                </div>`).join('')}</div>` : '<div class="dash-empty">No notifications</div>';
+            // Removed Recent Orders and Notifications list views
 
             const low = data.low_stock_alerts || [];
             const lowHtml = low.length ? `<div class="table-wrapper"><table>
@@ -83,12 +64,12 @@ async function renderDashboard() {
 
                 <div class="dash-row split">
                     <div class="card">
-                        <div class="card-header"><span class="card-title">${DASH_ICONS.sales} Recent Orders</span><span class="badge badge-draft">${recentOrders.length}</span></div>
-                        ${ordersHtml}
+                        <div class="card-header"><span class="card-title">${DASH_ICONS.sales} Order Pipeline</span></div>
+                        <div style="padding: 20px; height: 300px; display: flex; justify-content: center;"><canvas id="pipelineChart"></canvas></div>
                     </div>
                     <div class="card">
-                        <div class="card-header"><span class="card-title">${DASH_ICONS.bell} Notifications</span><span class="badge badge-draft">${recentNotifs.length}</span></div>
-                        ${notifsHtml}
+                        <div class="card-header"><span class="card-title">${DASH_ICONS.products} Top Inventory Health</span></div>
+                        <div style="padding: 20px; height: 300px;"><canvas id="inventoryChart"></canvas></div>
                     </div>
                 </div>
 
@@ -102,6 +83,51 @@ async function renderDashboard() {
                         ${auditHtml}
                     </div>
                 </div>`;
+
+            // Render Charts
+            const [purchaseOrders, mfgOrders, productsData] = await Promise.all([
+                api.get('/purchase-orders'), api.get('/manufacturing-orders'), api.get('/products')
+            ]);
+            
+            // 1. Pipeline Chart
+            let statusCounts = { 'DRAFT': 0, 'DELAYED': 0, 'IN_PROGRESS': 0, 'COMPLETED': 0, 'CANCELLED': 0 };
+            const allOrders = [...salesOrders, ...purchaseOrders, ...mfgOrders];
+            allOrders.forEach(o => {
+                let s = o.status;
+                if (s.includes('DELIVERED') || s.includes('RECEIVED')) {
+                    s = s.includes('PARTIAL') ? 'IN_PROGRESS' : 'COMPLETED';
+                }
+                if (s === 'CONFIRMED') s = 'IN_PROGRESS';
+                if (!statusCounts[s]) statusCounts[s] = 0;
+                statusCounts[s]++;
+            });
+            
+            new Chart(document.getElementById('pipelineChart'), {
+                type: 'doughnut',
+                data: {
+                    labels: ['Draft', 'Delayed', 'In Progress', 'Completed', 'Cancelled'],
+                    datasets: [{
+                        data: [statusCounts['DRAFT'], statusCounts['DELAYED'], statusCounts['IN_PROGRESS'], statusCounts['COMPLETED'], statusCounts['CANCELLED']],
+                        backgroundColor: ['#94a3b8', '#f59e0b', '#3b82f6', '#10b981', '#ef4444'],
+                        borderWidth: 0
+                    }]
+                },
+                options: { responsive: true, maintainAspectRatio: false, cutout: '70%', plugins: { legend: { position: 'right' } } }
+            });
+
+            // 2. Inventory Health Chart
+            const topProducts = productsData.sort((a, b) => b.on_hand_qty - a.on_hand_qty).slice(0, 10);
+            new Chart(document.getElementById('inventoryChart'), {
+                type: 'bar',
+                data: {
+                    labels: topProducts.map(p => p.name.length > 15 ? p.name.substring(0, 15) + '...' : p.name),
+                    datasets: [
+                        { label: 'On Hand', data: topProducts.map(p => p.on_hand_qty), backgroundColor: '#6366f1', borderRadius: 4 },
+                        { label: 'Min Stock', data: topProducts.map(p => p.min_stock), backgroundColor: '#cbd5e1', borderRadius: 4 }
+                    ]
+                },
+                options: { responsive: true, maintainAspectRatio: false, scales: { y: { beginAtZero: true, grid: { borderDash: [2, 4] } }, x: { grid: { display: false } } } }
+            });
         } else if (user.role === 'SALES') {
             const [salesOrders, customers, products] = await Promise.all([
                 api.get('/sales-orders').catch(() => []),
